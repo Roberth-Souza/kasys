@@ -1,0 +1,4 @@
+cache-dir = "~/.cache/ruff"
+
+[lint]
+extend-select = ["ANN001", "ANN201"]
