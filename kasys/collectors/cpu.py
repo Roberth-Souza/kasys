@@ -23,11 +23,10 @@ class Sample:
         return delta
 
 
-def calculates_delta(previous_sample: CpuTimes, current_sample: CpuTimes) -> float:
-    delta_idle = current_sample.idle - previous_sample.idle
-    delta_total = current_sample.total - previous_sample.total
-    delta = 100 * (delta_total - delta_idle) / delta_total
-    return delta
+def read_cpu_proc() -> str:
+    with open("/proc/stat", "r") as proc:
+        cpu_stats = proc.read()
+        return cpu_stats
 
 
 def parse_stat(cpu_stats: str) -> list[int]:
@@ -47,10 +46,13 @@ def calc_proc_sum(integer_stats: list[int]) -> CpuTimes:
     return CpuTimes(total=total, idle=idle)
 
 
-def read_cpu_proc() -> str:
-    with open("/proc/stat", "r") as proc:
-        cpu_stats = proc.read()
-        return cpu_stats
+def calculates_delta(previous_sample: CpuTimes, current_sample: CpuTimes) -> float:
+    delta_idle = current_sample.idle - previous_sample.idle
+    delta_total = current_sample.total - previous_sample.total
+    if delta_total == 0:
+        return 0.0
+    delta = 100 * (delta_total - delta_idle) / delta_total
+    return delta
 
 
 if __name__ == "__main__":

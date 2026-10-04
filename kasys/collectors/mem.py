@@ -10,9 +10,10 @@ class MemInfo:
     memory_usage: int
 
 
-def calculate_usage(total_memory: int, available_memory: int) -> MemInfo:
-    memory_usage = total_memory - available_memory
-    return MemInfo(total_memory, available_memory, memory_usage)
+def read_mem_proc() -> str:
+    with open("/proc/meminfo", "r") as data:
+        memory_data = data.read()
+        return memory_data
 
 
 def parse_mem_stats(memory_data: str) -> dict[str, int]:
@@ -31,10 +32,9 @@ def parse_mem_stats(memory_data: str) -> dict[str, int]:
     return integer_stats
 
 
-def read_mem_proc() -> str:
-    with open("/proc/meminfo", "r") as data:
-        memory_data = data.read()
-        return memory_data
+def calculate_usage(total_memory: int, available_memory: int) -> MemInfo:
+    memory_usage = total_memory - available_memory
+    return MemInfo(total_memory, available_memory, memory_usage)
 
 
 def get_mem_info() -> MemInfo:
