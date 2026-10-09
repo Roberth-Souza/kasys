@@ -2,6 +2,7 @@
 Collects data from the CPU
 """
 
+import glob
 import time
 from dataclasses import dataclass
 
@@ -34,6 +35,23 @@ def read_cpu_proc() -> str:
         return cpu_stats
 
 
+def read_cpu_frequencies() -> list[int]:
+    cpu_files = glob.glob("/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq")
+    if not cpu_files:
+        raise RuntimeError(
+            "Could not find any cpu file to read in /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq"
+        )
+    cpu_frequencies: list[int] = []
+    for freq_file in cpu_files:
+        with open(freq_file, "r") as freq:
+            cpu_frequencies.append(int(freq.read().strip()))
+    return cpu_frequencies
+
+
+def calculates_frequency(cpu_frequencies: list[int]) -> int:
+    return sum(cpu_frequencies) // len(cpu_frequencies)
+
+
 def parse_stat(cpu_stats: str) -> list[int]:
     first_line = cpu_stats.splitlines()[0]
     splitted_first_line = first_line.split()
@@ -56,9 +74,16 @@ def calculates_delta(previous_sample: CpuTimes, current_sample: CpuTimes) -> flo
     return delta
 
 
+def get_cpu_freq() -> int:
+    cpu_frequencies = read_cpu_frequencies()
+    frequency = calculates_frequency(cpu_frequencies)
+    return frequency
+
+
 if __name__ == "__main__":
     previous_sample = CpuSample()
     while True:
+        print(f"frequencia da CPU: {get_cpu_freq()}")
         time.sleep(1)
         delta_percentage = previous_sample.get_cpu_usage()
         print(f"{delta_percentage:.0f}%")
