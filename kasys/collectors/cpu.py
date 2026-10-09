@@ -12,11 +12,16 @@ class CpuTimes:
     idle: int
 
 
-class Sample:
+IDLE_POSITION = 3
+IOWAIT_POSITION = 4
+VALID_CPU_STATS = slice(1, 9)
+
+
+class CpuSample:
     def __init__(self) -> None:
         self.previous_sample: CpuTimes = calc_proc_sum(parse_stat(read_cpu_proc()))
 
-    def calculates_sample(self) -> float:
+    def get_cpu_usage(self) -> float:
         current_sample: CpuTimes = calc_proc_sum(parse_stat(read_cpu_proc()))
         delta = calculates_delta(self.previous_sample, current_sample)
         self.previous_sample = current_sample
@@ -30,19 +35,15 @@ def read_cpu_proc() -> str:
 
 
 def parse_stat(cpu_stats: str) -> list[int]:
-    """Since the proc/stat returns a string, we need to convert
-    only the useful information to integers"""
     first_line = cpu_stats.splitlines()[0]
     splitted_first_line = first_line.split()
-    integer_stats = [int(stat) for stat in splitted_first_line[1:9]]
+    integer_stats = [int(stat) for stat in splitted_first_line[VALID_CPU_STATS]]
     return integer_stats
 
 
 def calc_proc_sum(integer_stats: list[int]) -> CpuTimes:
-    """calculates the total cpu stats for both idle
-    and total"""
     total = sum(integer_stats)
-    idle = integer_stats[3] + integer_stats[4]
+    idle = integer_stats[IDLE_POSITION] + integer_stats[IOWAIT_POSITION]
     return CpuTimes(total=total, idle=idle)
 
 
@@ -56,8 +57,8 @@ def calculates_delta(previous_sample: CpuTimes, current_sample: CpuTimes) -> flo
 
 
 if __name__ == "__main__":
-    previous_sample = Sample()
+    previous_sample = CpuSample()
     while True:
         time.sleep(1)
-        delta_percentage = previous_sample.calculates_sample()
+        delta_percentage = previous_sample.get_cpu_usage()
         print(f"{delta_percentage:.0f}%")

@@ -40,9 +40,7 @@ def calculate_usage(total_memory: int, available_memory: int) -> MemInfo:
 def get_mem_info() -> MemInfo:
     collected_mem_info = read_mem_proc()
     parsed_mem_info = parse_mem_stats(collected_mem_info)
-    mem_data = calculate_usage(
-        parsed_mem_info["MemTotal"], parsed_mem_info["MemAvailable"]
-    )
+    mem_data = calculate_usage(parsed_mem_info["MemTotal"], parsed_mem_info["MemAvailable"])
     return mem_data
 
 
