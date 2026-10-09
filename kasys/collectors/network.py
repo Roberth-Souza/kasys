@@ -25,16 +25,20 @@ class NetSample:
         current_sample = parse_network_proc(read_net_proc())
         current_collect_time = time.monotonic()
         time_delta = current_collect_time - self.previous_collect_time
-        download_diference = (
+        if time_delta == 0:
+            raise RuntimeError(
+                "0 seconds since last sample, not enough time to measure speed"
+            )
+        download_difference = (
             current_sample.download - self.previous_sample.download
         ) / time_delta
-        upload_diference = (
+        upload_difference = (
             current_sample.upload - self.previous_sample.upload
         ) / time_delta
 
         self.previous_collect_time = current_collect_time
         self.previous_sample = current_sample
-        return NetSpeed(max(download_diference, 0.0), max(upload_diference, 0.0))
+        return NetSpeed(max(download_difference, 0.0), max(upload_difference, 0.0))
 
 
 def read_net_proc() -> str:
