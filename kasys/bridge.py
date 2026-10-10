@@ -96,16 +96,22 @@ class Monitor(QObject):
         super().__init__(parent)
         self._cpu_sample = cpu.CpuSample()
         self._net_sample = network.NetSample()
+        self._disk_sample: disk.DiskSample | None = _read("disk activity", disk.DiskSample, None)
 
         self._cpu_usage = 0.0
         self._cpu_freq = MISSING
         self._mem: mem.MemInfo | None = None
         self._disk: disk.DiskInfo | None = None
         self._net = network.NetSpeed(download=0.0, upload=0.0)
+        # Active time % per physical disk, sorted by name. Every disk the first
+        # reading found starts at 0 so the card has its rows before the first tick.
+        self._disk_activity: dict[str, float] = {}
+        if self._disk_sample is not None:
+            self._disk_activity = dict.fromkeys(sorted(self._disk_sample.previous_sample), 0.0)
 
         self._cpu_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
         self._mem_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
-        self._disk_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
+        self._disk_activity_history: dict[str, deque[float]] = {}
         self._down_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
         self._up_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
 
@@ -140,13 +146,25 @@ class Monitor(QObject):
         self._cpu_freq = _read("cpu frequency", cpu.get_cpu_freq, MISSING)
         self._net = _read("network", self._net_sample.get_net_speed, network.NetSpeed(0.0, 0.0))
         self._read_levels()
+        self._sample_disk_activity()
 
         self._cpu_history.append(self._cpu_usage)
         self._mem_history.append(self._mem_percent())
-        self._disk_history.append(self._disk_percent())
         self._down_history.append(self._net.download)
         self._up_history.append(self._net.upload)
         self.tick.emit()
+
+    def _sample_disk_activity(self) -> None:
+        if self._disk_sample is None:
+            return
+        activity = _read("disk activity", self._disk_sample.get_disk_activity, {})
+        self._disk_activity = dict(sorted(activity.items()))
+        # Rebuilt each tick: an unplugged disk loses its graph, a new one starts empty.
+        history: dict[str, deque[float]] = {}
+        for name, percent in self._disk_activity.items():
+            history[name] = self._disk_activity_history.get(name, deque(maxlen=HISTORY_LENGTH))
+            history[name].append(percent)
+        self._disk_activity_history = history
 
     def _mem_percent(self) -> float:
         if self._mem is None:
@@ -201,7 +219,7 @@ class Monitor(QObject):
     memPercent = Property(float, _get_mem_percent, notify=tick)
     memHistory = Property(list, _get_mem_history, notify=tick)
 
-    # -- disk (bytes) --------------------------------------------------------
+    # -- disk (space in bytes, activity in %) ---------------------------------
     def _get_disk_total(self) -> float:
         return float(self._disk.total) if self._disk else MISSING
 
@@ -211,13 +229,21 @@ class Monitor(QObject):
     def _get_disk_percent(self) -> float:
         return self._disk_percent()
 
-    def _get_disk_history(self) -> list[float]:
-        return list(self._disk_history)
+    def _get_disks(self) -> list[dict[str, object]]:
+        return [
+            {
+                "name": name,
+                "percent": percent,
+                "history": list(self._disk_activity_history.get(name, ())),
+            }
+            for name, percent in self._disk_activity.items()
+        ]
 
     diskTotal = Property(float, _get_disk_total, notify=tick)
     diskUsed = Property(float, _get_disk_used, notify=tick)
     diskPercent = Property(float, _get_disk_percent, notify=tick)
-    diskHistory = Property(list, _get_disk_history, notify=tick)
+    # One {name, percent, history} per physical disk: active time, 0..100.
+    disks = Property(list, _get_disks, notify=tick)
 
     # -- network (bytes/s) ---------------------------------------------------
     def _get_net_down(self) -> float:

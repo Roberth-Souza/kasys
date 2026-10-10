@@ -7,6 +7,7 @@ Item {
     id: root
 
     property string label: ""
+    property color labelColor: Config.fg
     property string value: Format.missing
     property string detail: ""
     property real fraction: -1
@@ -23,6 +24,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: root.labelWidth
         text: root.label
+        color: root.labelColor
     }
 
     Label {

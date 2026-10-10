@@ -15,6 +15,8 @@ QtObject {
     readonly property color fgInvert: "#000000"
     readonly property color border: "#3c3c3c"
     readonly property color clear: "#00000000"
+    readonly property color menuBg: "#000000"
+    readonly property color hoverFill: "#262626"
 
     // Graphs and bars. Opaque on purpose: the Canvas takes them as strings.
     readonly property color graphLine: "#d4d4d4"
@@ -47,6 +49,7 @@ QtObject {
     readonly property string glyphAvatar: "\u{F0013}"       // md-account_outline
     readonly property string glyphDown: "\u{F01DA}"         // md-download
     readonly property string glyphUp: "\u{F0552}"           // md-upload
+    readonly property string glyphChevronDown: "\u{F0140}"  // md-chevron_down
 
     // -- geometry ------------------------------------------------------------
     readonly property int pad: 12           // window edge, same as the gap between cards
@@ -83,6 +86,7 @@ QtObject {
     readonly property int meterRowHeight: 22
     readonly property int meterLabelWidth: 96
     readonly property int meterValueWidth: 72
+    readonly property int dropdownWidth: 120
 
     // Per-core rows: two columns, six rows covers 12 threads.
     readonly property int coreRows: 6
@@ -116,8 +120,8 @@ QtObject {
     readonly property int gpuCardHeight: cardChrome + graphHeight + sectionGap
                                          + gpuNameHeight + gap
                                          + gpuRows * gpuRowHeight
-    readonly property int diskCardHeight: cardChrome + graphHeight + sectionGap
-                                          + meterRowHeight
+    // Plus one meterRowHeight per disk row: see Overview.
+    readonly property int diskCardBaseHeight: cardChrome + graphHeight + sectionGap
     readonly property int temperatureCardHeight: cardChrome + temperatureRows
                                                  * temperatureRowHeight
 

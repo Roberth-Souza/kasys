@@ -6,6 +6,11 @@ import "."
 Row {
     id: root
 
+    // Grows with the number of disks; Processes takes what is left.
+    readonly property int diskCardHeight: Config.diskCardBaseHeight
+                                          + Math.max(1, monitor.disks.length)
+                                          * Config.meterRowHeight
+
     spacing: Config.blockGap
 
     Column {
@@ -42,12 +47,12 @@ Row {
 
         DiskPanel {
             width: parent.width
-            height: Config.diskCardHeight
+            height: root.diskCardHeight
         }
 
         ProcessesPanel {
             width: parent.width
-            height: root.height - Config.gpuCardHeight - Config.diskCardHeight
+            height: root.height - Config.gpuCardHeight - root.diskCardHeight
                     - 2 * Config.blockGap
         }
     }

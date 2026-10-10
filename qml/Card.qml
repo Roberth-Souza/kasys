@@ -2,13 +2,15 @@ import QtQuick
 import "."
 
 // The bordered black box every block sits in: 1px border, square corners, no
-// shadow. Heading row: glyph + title on the left, `headerRight` on the right.
+// shadow. Heading row: glyph + title + `headerLeft` on the left, `headerRight`
+// on the right.
 Rectangle {
     id: root
 
     property string title: ""
     property string glyph: ""
     default property alias content: body.data
+    property alias headerLeft: extra.data
     property alias headerRight: controls.data
 
     color: Config.cardBg
@@ -36,6 +38,14 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             text: root.title
             color: Config.fgActive
+        }
+
+        Item {
+            id: extra
+
+            anchors.verticalCenter: parent.verticalCenter
+            width: childrenRect.width
+            height: parent.height
         }
     }
 
