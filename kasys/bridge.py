@@ -157,7 +157,7 @@ class Monitor(QObject):
         if self._disk is None:
             return 0.0
         # Same ratio `df` prints: the root-reserved blocks count as neither.
-        return _percent(self._disk.usage, self._disk.usage + self._disk.available)
+        return _percent(self._disk.used, self._disk.used + self._disk.available)
 
     # -- CPU ---------------------------------------------------------------
     def _get_cpu_usage(self) -> float:
@@ -206,7 +206,7 @@ class Monitor(QObject):
         return float(self._disk.total) if self._disk else MISSING
 
     def _get_disk_used(self) -> float:
-        return float(self._disk.usage) if self._disk else MISSING
+        return float(self._disk.used) if self._disk else MISSING
 
     def _get_disk_percent(self) -> float:
         return self._disk_percent()
