@@ -1,10 +1,10 @@
 import QtQuick
 import "."
 
-// Heading: a disk picker, then space used on the root filesystem (on btrfs
-// every subvolume shares its numbers). Body: active time, the share of each
-// second a disk had a request in flight. The graph follows the picked disk;
-// the rows list every disk, the picked one bright.
+// Only disks with something mounted. Heading: a disk picker, then the space
+// used on the picked disk's largest mounted partition. Graph: its active time,
+// the share of each second it had a request in flight. Rows: free space on
+// every disk, the bar filled like `df` Use%, the picked one bright.
 Card {
     id: root
 
@@ -26,12 +26,12 @@ Card {
         spacing: Config.blockGap
 
         UsedOfTotal {
-            used: monitor.diskUsed
-            total: monitor.diskTotal
+            used: root.shown ? root.shown.used : -1
+            total: root.shown ? root.shown.total : -1
         }
 
         Label {
-            text: Format.percent(monitor.diskPercent)
+            text: Format.percent(root.shown ? root.shown.percent : -1)
             color: Config.fgActive
         }
     }
@@ -59,7 +59,7 @@ Card {
                     label: modelData.name
                     labelColor: root.shown && modelData.name === root.shown.name
                                 ? Config.fgActive : Config.fg
-                    value: Format.percent(modelData.percent)
+                    value: Format.bytes(modelData.available)
                     fraction: modelData.percent / 100
                 }
             }
@@ -68,7 +68,7 @@ Card {
             MeterRow {
                 visible: monitor.disks.length === 0
                 width: parent.width
-                label: "Active"
+                label: "Free"
             }
         }
     }

@@ -101,13 +101,12 @@ class Monitor(QObject):
         self._cpu_usage = 0.0
         self._cpu_freq = MISSING
         self._mem: mem.MemInfo | None = None
-        self._disk: disk.DiskInfo | None = None
+        # Free space of the largest mounted partition per disk. Only disks with
+        # something mounted have a key, and only those reach the Disk card.
+        self._disk_space: dict[str, disk.DiskInfo] = {}
         self._net = network.NetSpeed(download=0.0, upload=0.0)
-        # Active time % per physical disk, sorted by name. Every disk the first
-        # reading found starts at 0 so the card has its rows before the first tick.
+        # Active time % per physical disk, mounted or not.
         self._disk_activity: dict[str, float] = {}
-        if self._disk_sample is not None:
-            self._disk_activity = dict.fromkeys(sorted(self._disk_sample.previous_sample), 0.0)
 
         self._cpu_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
         self._mem_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
@@ -138,7 +137,7 @@ class Monitor(QObject):
 
     def _read_levels(self) -> None:
         self._mem = _read("memory", mem.get_mem_info, self._mem)
-        self._disk = _read("disk", disk.get_disk_info, self._disk)
+        self._disk_space = _read("disk space", disk.get_disk_space, self._disk_space)
 
     @Slot()
     def _sample(self) -> None:
@@ -170,12 +169,6 @@ class Monitor(QObject):
         if self._mem is None:
             return 0.0
         return _percent(self._mem.memory_usage, self._mem.total_memory)
-
-    def _disk_percent(self) -> float:
-        if self._disk is None:
-            return 0.0
-        # Same ratio `df` prints: the root-reserved blocks count as neither.
-        return _percent(self._disk.used, self._disk.used + self._disk.available)
 
     # -- CPU ---------------------------------------------------------------
     def _get_cpu_usage(self) -> float:
@@ -220,29 +213,23 @@ class Monitor(QObject):
     memHistory = Property(list, _get_mem_history, notify=tick)
 
     # -- disk (space in bytes, activity in %) ---------------------------------
-    def _get_disk_total(self) -> float:
-        return float(self._disk.total) if self._disk else MISSING
-
-    def _get_disk_used(self) -> float:
-        return float(self._disk.used) if self._disk else MISSING
-
-    def _get_disk_percent(self) -> float:
-        return self._disk_percent()
-
     def _get_disks(self) -> list[dict[str, object]]:
         return [
             {
                 "name": name,
-                "percent": percent,
+                "total": float(space.total),
+                "used": float(space.used),
+                "available": float(space.available),
+                # Same ratio `df` prints: the root-reserved blocks count as neither.
+                "percent": _percent(space.used, space.used + space.available),
                 "history": list(self._disk_activity_history.get(name, ())),
             }
-            for name, percent in self._disk_activity.items()
+            for name, space in sorted(self._disk_space.items())
         ]
 
-    diskTotal = Property(float, _get_disk_total, notify=tick)
-    diskUsed = Property(float, _get_disk_used, notify=tick)
-    diskPercent = Property(float, _get_disk_percent, notify=tick)
-    # One {name, percent, history} per physical disk: active time, 0..100.
+    # One dict per disk with something mounted, sorted by name: space of its
+    # largest mounted partition (bytes, percent = fill) and the active time
+    # history (0..100) for the graph.
     disks = Property(list, _get_disks, notify=tick)
 
     # -- network (bytes/s) ---------------------------------------------------

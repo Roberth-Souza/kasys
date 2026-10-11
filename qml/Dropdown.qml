@@ -4,11 +4,14 @@ import "."
 
 // The current option with a chevron; a click lists every option under it.
 // Picking one emits `picked`; the owner decides what `current` becomes.
+// With one option or none there is nothing to pick: just the label.
 Item {
     id: root
 
     property var options: []
     property string current: ""
+
+    readonly property bool pickable: root.options.length > 1
 
     signal picked(string option)
 
@@ -28,6 +31,7 @@ Item {
         }
 
         Label {
+            visible: root.pickable
             anchors.verticalCenter: parent.verticalCenter
             text: Config.glyphChevronDown
             font.pixelSize: Config.glyphSize
@@ -36,7 +40,7 @@ Item {
 
     MouseArea {
         anchors.fill: parent
-        enabled: root.options.length > 0
+        enabled: root.pickable
         cursorShape: Qt.PointingHandCursor
         onClicked: menu.visible ? menu.close() : menu.open()
     }
