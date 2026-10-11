@@ -9,6 +9,8 @@ from dataclasses import dataclass
 DISK_NAME_IN_SYS = 3
 DISK_NAME_IN_PROC = 2
 IO_TICKS_POSITION = 12
+DISK_PARTITION_NAME = 0
+DISK_PARTITION_FOLDER = 1
 
 
 @dataclass(frozen=True)
@@ -81,12 +83,64 @@ def check_missing_disks(disk_names: list[str], disk_io_tick: dict[str, int]) -> 
         warnings.warn(f"Could not find {', '.join(not_found_disks)} in /proc/diskstats")
 
 
-def get_disk_info() -> DiskInfo:
-    disk = os.statvfs("/")
-    total = disk.f_frsize * disk.f_blocks
-    used = (disk.f_blocks - disk.f_bfree) * disk.f_frsize
-    available = disk.f_bavail * disk.f_frsize
-    return DiskInfo(total, used, available)
+def read_disk_mounts() -> str:
+    with open("/proc/self/mounts", "r") as raw:
+        raw_mount_proc = raw.read()
+    return raw_mount_proc
+
+
+def decode_mount_path(disk_partition_folder: str) -> str:
+    return (
+        disk_partition_folder.replace(r"\040", " ").replace(r"\011", "\t").replace(r"\012", "\n").replace(r"\134", "\\")
+    )
+
+
+def parse_disk_mounts(raw_mount_proc: str) -> dict[str, str]:
+    lines = [line.split() for line in raw_mount_proc.splitlines()]
+    raw_partitions: dict[str, str] = {}
+    for fields in lines:
+        device = fields[DISK_PARTITION_NAME]
+        if device.startswith("/dev/"):
+            disk_partition_name = os.path.basename(device)
+            disk_partition_folder = fields[DISK_PARTITION_FOLDER]
+            decoded_partition_folder = decode_mount_path(disk_partition_folder)
+            raw_partitions[disk_partition_name] = decoded_partition_folder
+    return raw_partitions
+
+
+def map_partitions_to_disks(partitions: dict[str, str], disk_names: list[str]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for partition in partitions:
+        path = os.path.realpath(f"/sys/class/block/{partition}/..")
+        disk_name = os.path.basename(path)
+        if disk_name in disk_names:
+            result[partition] = disk_name
+
+    return result
+
+
+def get_partition_space(parsed_disk_mounts: dict[str, str]) -> dict[str, DiskInfo]:
+    partition_info: dict[str, DiskInfo] = {}
+    for partition, mount_point in parsed_disk_mounts.items():
+        mount_path = os.statvfs(mount_point)
+        total = mount_path.f_frsize * mount_path.f_blocks
+        used = (mount_path.f_blocks - mount_path.f_bfree) * mount_path.f_frsize
+        available = mount_path.f_bavail * mount_path.f_frsize
+        partition_info[partition] = DiskInfo(total, used, available)
+    return partition_info
+
+
+def largest_partition_per_disk(
+    mapped_partitions: dict[str, str],
+    partition_space: dict[str, DiskInfo],
+) -> dict[str, DiskInfo]:
+
+    max_partitions: dict[str, DiskInfo] = {}
+    for partition, disk in mapped_partitions.items():
+        space = partition_space[partition]
+        if disk not in max_partitions or max_partitions[disk].total < space.total:
+            max_partitions[disk] = space
+    return max_partitions
 
 
 def get_disk_io_ticks() -> dict[str, int]:
@@ -98,8 +152,19 @@ def get_disk_io_ticks() -> dict[str, int]:
     return parsed_disk_stats
 
 
+def get_disk_space() -> dict[str, DiskInfo]:
+    raw_disk_mounts = read_disk_mounts()
+    parsed_disk_mounts = parse_disk_mounts(raw_disk_mounts)
+    raw_disk_names = read_disk_names()
+    parsed_disk_names = parse_disk_names(raw_disk_names)
+    mapped_partitions = map_partitions_to_disks(parsed_disk_mounts, parsed_disk_names)
+    partition_space = get_partition_space(parsed_disk_mounts)
+    largest_partition_disk_space = largest_partition_per_disk(mapped_partitions, partition_space)
+    return largest_partition_disk_space
+
+
 if __name__ == "__main__":
-    print(get_disk_info())
+    print(get_disk_space())
     disk_sample = DiskSample()
     while True:
         time.sleep(1)
