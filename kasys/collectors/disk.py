@@ -90,6 +90,8 @@ def read_disk_mounts() -> str:
 
 
 def decode_mount_path(disk_partition_folder: str) -> str:
+    r"""We need to decode the mount path because it is escaped in /proc/self/mounts.
+    Spaces are represented as \040, tabs as \011, newlines as \012, and backslashes as \134."""
     return (
         disk_partition_folder.replace(r"\040", " ").replace(r"\011", "\t").replace(r"\012", "\n").replace(r"\134", "\\")
     )
@@ -115,18 +117,21 @@ def map_partitions_to_disks(partitions: dict[str, str], disk_names: list[str]) -
         disk_name = os.path.basename(path)
         if disk_name in disk_names:
             result[partition] = disk_name
-
     return result
+
+
+def calc_partition_space(stats: os.statvfs_result) -> DiskInfo:
+    total = stats.f_frsize * stats.f_blocks
+    used = (stats.f_blocks - stats.f_bfree) * stats.f_frsize
+    available = stats.f_bavail * stats.f_frsize
+    return DiskInfo(total, used, available)
 
 
 def get_partition_space(parsed_disk_mounts: dict[str, str]) -> dict[str, DiskInfo]:
     partition_info: dict[str, DiskInfo] = {}
     for partition, mount_point in parsed_disk_mounts.items():
-        mount_path = os.statvfs(mount_point)
-        total = mount_path.f_frsize * mount_path.f_blocks
-        used = (mount_path.f_blocks - mount_path.f_bfree) * mount_path.f_frsize
-        available = mount_path.f_bavail * mount_path.f_frsize
-        partition_info[partition] = DiskInfo(total, used, available)
+        stats = os.statvfs(mount_point)
+        partition_info[partition] = calc_partition_space(stats)
     return partition_info
 
 
@@ -134,7 +139,6 @@ def largest_partition_per_disk(
     mapped_partitions: dict[str, str],
     partition_space: dict[str, DiskInfo],
 ) -> dict[str, DiskInfo]:
-
     max_partitions: dict[str, DiskInfo] = {}
     for partition, disk in mapped_partitions.items():
         space = partition_space[partition]
