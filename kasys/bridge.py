@@ -12,13 +12,14 @@ the fallback value, so one broken source never takes the whole window down.
 from __future__ import annotations
 
 import os
+import re
 import sys
 from collections import deque
 from collections.abc import Callable
 
 from PySide6.QtCore import Property, QCoreApplication, QObject, QTimer, Signal, Slot
 
-from kasys.collectors import cpu, disk, mem, network
+from kasys.collectors import cpu, disk, mem, network, sensors
 from kasys.collectors import sys as sysinfo
 
 TICK_MS = 1000
@@ -27,6 +28,15 @@ HISTORY_LENGTH = 60
 BYTES_PER_KB = 1024
 # What a property reads when its source failed; QML draws it as "--".
 MISSING = -1
+
+# Chips the Temperatures card knows, in the order it lists them: display
+# name, glyph kind for QML, and the one sensor shown. Any other chip shows up
+# under its raw name with its first sensor.
+KNOWN_CHIPS: dict[str, tuple[str, str, str]] = {
+    "k10temp": ("CPU", "cpu", "Tctl"),
+    "amdgpu": ("GPU", "gpu", "edge"),
+    "nvme": ("NVMe", "disk", "Composite"),
+}
 
 COLLECTOR_ERRORS = (OSError, ValueError, RuntimeError, IndexError, KeyError)
 
@@ -46,6 +56,39 @@ def _read[T](label: str, read: Callable[[], T], fallback: T) -> T:
 
 def _percent(part: float, whole: float) -> float:
     return 100 * part / whole if whole > 0 else 0.0
+
+
+def _known_chip(key: str) -> tuple[str, str]:
+    """Split a sensors key into a KNOWN_CHIPS name and its repeat counter.
+
+    `nvme2` -> ("nvme", "2"). Unknown chips come back as (key, ""), so a raw
+    name ending in digits (`nct6775`) is never cut.
+    """
+    if key in KNOWN_CHIPS:
+        return key, ""
+    match = re.fullmatch(r"(.+?)(\d+)", key)
+    if match and match.group(1) in KNOWN_CHIPS:
+        return match.group(1), match.group(2)
+    return key, ""
+
+
+def _temperature_rows(chips: dict[str, list[sensors.Sensor]]) -> list[dict[str, object]]:
+    """One row per chip: known chips first in KNOWN_CHIPS order, then the rest."""
+    order = list(KNOWN_CHIPS)
+    rows: list[tuple[int, dict[str, object]]] = []
+    for key, chip_sensors in chips.items():
+        chip, counter = _known_chip(key)
+        if chip in KNOWN_CHIPS:
+            name, kind, wanted = KNOWN_CHIPS[chip]
+            if counter:
+                name = f"{name} {counter}"
+            rank = order.index(chip)
+        else:
+            name, kind, wanted, rank = key, "", "", len(order)
+        sensor = next((s for s in chip_sensors if s.label == wanted), chip_sensors[0])
+        rows.append((rank, {"name": name, "kind": kind, "celsius": sensor.celsius}))
+    # sorted() is stable: same-rank chips keep the collector's hwmon order.
+    return [row for _, row in sorted(rows, key=lambda pair: pair[0])]
 
 
 class Overlay(QObject):
@@ -107,6 +150,7 @@ class Monitor(QObject):
         self._net = network.NetSpeed(download=0.0, upload=0.0)
         # Active time % per physical disk, mounted or not.
         self._disk_activity: dict[str, float] = {}
+        self._sensors: dict[str, list[sensors.Sensor]] = {}
 
         self._cpu_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
         self._mem_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
@@ -120,8 +164,9 @@ class Monitor(QObject):
         self._install_date = ""
         self.read_system_info()
 
-        # Memory and disk need no previous reading, so the first frame already
-        # has them. CPU and network are deltas and wait for the first tick.
+        # Memory, disk space and sensors need no previous reading, so the first
+        # frame already has them. CPU and network are deltas and wait for the
+        # first tick.
         self._read_levels()
 
         self._timer = QTimer(self)
@@ -138,6 +183,7 @@ class Monitor(QObject):
     def _read_levels(self) -> None:
         self._mem = _read("memory", mem.get_mem_info, self._mem)
         self._disk_space = _read("disk space", disk.get_disk_space, self._disk_space)
+        self._sensors = _read("sensors", sensors.get_sensors_info, self._sensors)
 
     @Slot()
     def _sample(self) -> None:
@@ -231,6 +277,14 @@ class Monitor(QObject):
     # largest mounted partition (bytes, percent = fill) and the active time
     # history (0..100) for the graph.
     disks = Property(list, _get_disks, notify=tick)
+
+    # -- temperatures (°C) ---------------------------------------------------
+    def _get_temperatures(self) -> list[dict[str, object]]:
+        return _temperature_rows(self._sensors)
+
+    # One dict per hwmon chip with temperatures: display name, glyph kind
+    # ("cpu", "gpu", "disk" or "" for an unknown chip) and celsius.
+    temperatures = Property(list, _get_temperatures, notify=tick)
 
     # -- network (bytes/s) ---------------------------------------------------
     def _get_net_down(self) -> float:

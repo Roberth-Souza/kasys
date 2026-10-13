@@ -1,8 +1,16 @@
 import QtQuick
 import "."
 
-// Placeholder until the sensors collector (M4): one row per sensor, "--°C".
+// One row per hwmon chip, one sensor each (picked by the bridge).
 Card {
+    id: root
+
+    readonly property var glyphs: ({
+        "cpu": Config.glyphChip,
+        "gpu": Config.glyphGpu,
+        "disk": Config.glyphDisk
+    })
+
     title: "Temperatures"
     glyph: Config.glyphTemperature
 
@@ -10,13 +18,7 @@ Card {
         anchors.fill: parent
 
         Repeater {
-            model: [
-                { "name": "CPU (Tctl)", "glyph": Config.glyphChip },
-                { "name": "CPU (CCD)", "glyph": Config.glyphChip },
-                { "name": "GPU", "glyph": Config.glyphGpu },
-                { "name": "GPU Hot Spot", "glyph": Config.glyphGpu },
-                { "name": "NVMe", "glyph": Config.glyphDisk }
-            ]
+            model: monitor.temperatures
 
             Item {
                 required property var modelData
@@ -29,7 +31,7 @@ Card {
                     spacing: Config.gap
 
                     Label {
-                        text: modelData.glyph
+                        text: root.glyphs[modelData.kind] ?? Config.glyphTemperature
                         font.pixelSize: Config.glyphSize
                     }
 
@@ -41,10 +43,18 @@ Card {
                 Label {
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    text: Format.missing + "°C"
-                    color: Config.fgDim
+                    text: Math.round(modelData.celsius) + "°C"
+                    color: Config.fgActive
                 }
             }
+        }
+
+        Label {
+            visible: monitor.temperatures.length === 0
+            height: Config.temperatureRowHeight
+            verticalAlignment: Text.AlignVCenter
+            text: Format.missing + "°C"
+            color: Config.fgDim
         }
     }
 }

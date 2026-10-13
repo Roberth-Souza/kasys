@@ -104,7 +104,6 @@ QtObject {
     readonly property int pidWidth: 64
     readonly property int processPercentWidth: 56
 
-    readonly property int temperatureRows: 5
     readonly property int temperatureRowHeight: 26
 
     readonly property int avatarWidth: 112
@@ -122,8 +121,8 @@ QtObject {
                                          + gpuRows * gpuRowHeight
     // Plus one meterRowHeight per disk row: see Overview.
     readonly property int diskCardBaseHeight: cardChrome + graphHeight + sectionGap
-    readonly property int temperatureCardHeight: cardChrome + temperatureRows
-                                                 * temperatureRowHeight
+    // Plus one temperatureRowHeight per chip: see Overview.
+    readonly property int temperatureCardBaseHeight: cardChrome
 
     readonly property int windowWidth: 2 * pad + sidebarWidth + blockGap
                                        + 3 * columnWidth + 2 * blockGap

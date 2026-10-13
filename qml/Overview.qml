@@ -10,6 +10,10 @@ Row {
     readonly property int diskCardHeight: Config.diskCardBaseHeight
                                           + Math.max(1, monitor.disks.length)
                                           * Config.meterRowHeight
+    // One row per chip; System takes what is left.
+    readonly property int temperatureCardHeight: Config.temperatureCardBaseHeight
+                                                 + Math.max(1, monitor.temperatures.length)
+                                                 * Config.temperatureRowHeight
 
     spacing: Config.blockGap
 
@@ -64,12 +68,12 @@ Row {
 
         TemperaturePanel {
             width: parent.width
-            height: Config.temperatureCardHeight
+            height: root.temperatureCardHeight
         }
 
         SystemPanel {
             width: parent.width
-            height: root.height - Config.temperatureCardHeight - Config.blockGap
+            height: root.height - root.temperatureCardHeight - Config.blockGap
         }
     }
 }
