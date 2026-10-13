@@ -70,8 +70,11 @@ def get_sensors_info() -> dict[str, list[Sensor]]:
     collected_paths = collect_hwmon_path()
     result: dict[str, list[Sensor]] = {}
     for path in collected_paths:
-        raw_name = extract_chip_name(path)
-        sensors = read_sensors(path)
+        try:
+            raw_name = extract_chip_name(path)
+            sensors = read_sensors(path)
+        except FileNotFoundError:
+            continue
         if sensors:
             name = unique_name(raw_name, result)
             result[name] = sensors
