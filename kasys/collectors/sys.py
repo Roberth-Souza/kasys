@@ -19,19 +19,19 @@ def read_hostname_proc() -> str:
         return hostname_info.strip()
 
 
-def read_os_age() -> str:
+def read_install_date() -> str:
     with open("/var/log/pacman.log", "r") as info:
-        unparsed_os_age = info.readline()
-        return unparsed_os_age
+        unparsed_install_date = info.readline()
+        return unparsed_install_date
 
 
-def parse_os_age(unparsed_os_age: str) -> datetime:
-    striped_age = unparsed_os_age.split()
-    if not striped_age:
+def parse_install_date(unparsed_install_date: str) -> datetime:
+    split_line = unparsed_install_date.split()
+    if not split_line:
         raise ValueError("pacman.log is empty")
-    parsed_age = striped_age[0][1:-1]
-    date_ = datetime.fromisoformat(parsed_age)
-    return date_
+    timestamp = split_line[0][1:-1]
+    install_date = datetime.fromisoformat(timestamp)
+    return install_date
 
 
 def read_uptime_proc() -> str:
@@ -73,9 +73,9 @@ def get_sys_info() -> SysInfo:
 
 
 def get_install_date() -> datetime:
-    unparsed_os_age = read_os_age()
-    os_age = parse_os_age(unparsed_os_age)
-    return os_age
+    unparsed_install_date = read_install_date()
+    install_date = parse_install_date(unparsed_install_date)
+    return install_date
 
 
 if __name__ == "__main__":
