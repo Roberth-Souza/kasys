@@ -18,9 +18,9 @@ from collections import deque
 from collections.abc import Callable
 from datetime import datetime
 
-from PySide6.QtCore import Property, QCoreApplication, QObject, QTimer, Signal, Slot
+from PySide6.QtCore import Property, QCoreApplication, QObject, QTimer, QUrl, Signal, Slot
 
-from kasys.collectors import cpu, disk, mem, network, sensors
+from kasys.collectors import avatar, cpu, disk, mem, network, sensors
 from kasys.collectors import sys as sysinfo
 
 TICK_MS = 1000
@@ -164,6 +164,10 @@ class Monitor(QObject):
         self._sys: sysinfo.SysInfo | None = None
         self._install_date: datetime | None = None
         self.read_system_info()
+
+        # The avatar is resolved once at startup: changing it means a restart.
+        avatar_path = _read("avatar", avatar.get_avatar_path, None)
+        self._avatar_url = QUrl.fromLocalFile(avatar_path).toString() if avatar_path else ""
 
         # Memory, disk space and sensors need no previous reading, so the first
         # frame already has them. CPU and network are deltas and wait for the
@@ -327,3 +331,9 @@ class Monitor(QObject):
     uptime = Property(float, _get_uptime, notify=systemInfoChanged)
     # Days since install; notified every tick so it turns over at midnight.
     osAgeDays = Property(int, _get_os_age_days, notify=tick)
+
+    def _get_avatar_url(self) -> str:
+        return self._avatar_url
+
+    # file:// URL, or "" when no avatar is configured.
+    avatarUrl = Property(str, _get_avatar_url, constant=True)

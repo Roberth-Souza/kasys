@@ -1,9 +1,9 @@
 import QtQuick
 import "."
 
-// Avatar and system info, read once per opening. The avatar is a placeholder
-// until its config reader lands; the space under the rule is reserved for
-// the quote.
+// Avatar and system info, read once per opening. The avatar falls back to a
+// glyph when none is configured or the image fails to load; the space under
+// the rule is reserved for the quote.
 Card {
     Row {
         id: top
@@ -18,9 +18,25 @@ Card {
             height: Config.avatarHeight
             color: Config.clear
             border.color: Config.border
-            border.width: 1
+            // The frame only outlines the placeholder glyph.
+            border.width: avatar.status === Image.Ready ? 0 : 1
+
+            Image {
+                id: avatar
+
+                anchors.fill: parent
+                source: monitor.avatarUrl
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                smooth: true
+                mipmap: true
+                // Decode near box size instead of keeping the full image.
+                sourceSize.width: 2 * width
+                sourceSize.height: 2 * height
+            }
 
             Label {
+                visible: avatar.status !== Image.Ready
                 anchors.centerIn: parent
                 text: Config.glyphAvatar
                 color: Config.fgDim

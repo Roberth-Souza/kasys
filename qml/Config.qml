@@ -116,10 +116,11 @@ QtObject {
 
     readonly property int temperatureRowHeight: 26
 
-    readonly property int avatarWidth: 112
-    readonly property int avatarHeight: 136
-    readonly property int infoKeyWidth: 80
-    readonly property int infoRowHeight: 24
+    // 2:3, the usual portrait ratio, so most avatars fill the box.
+    readonly property int avatarWidth: 148
+    readonly property int avatarHeight: 222
+    readonly property int infoKeyWidth: 72
+    readonly property int infoRowHeight: 32
 
     // Fixed card heights; the last card of each column takes what is left.
     readonly property int cpuCardHeight: cardChrome + cpuGraphHeight + sectionGap
