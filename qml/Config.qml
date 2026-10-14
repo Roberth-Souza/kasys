@@ -33,11 +33,20 @@ QtObject {
     readonly property int fontSizeSmall: 11
     readonly property int fontSizeMedium: 14
     readonly property int glyphSize: 14
+    // Card heading and row icons. Sizes are matched by ink, not by number:
+    // at 18 most glyphs draw about 14x15 px; the RAM stick is wide, so it
+    // steps down.
+    readonly property int iconSize: 18
+    readonly property int iconSizeWide: 16
+    readonly property int gpuIconWidth: 18    // GpuIcon, drawn instead of a glyph
+    // Fixed icon cell, icon centred in it, so the text after it lines up.
+    readonly property int iconWidth: 20
 
     // -- glyphs (Nerd Font, checked against the installed font) --------------
     readonly property string glyphApp: "\u{F0379}"          // md-monitor
-    readonly property string glyphCpu: ""             // oct-cpu
-    readonly property string glyphMemory: "\u{F035B}"       // md-memory
+    // CPU, RAM and GPU match caesar-shell's system popup.
+    readonly property string glyphCpu: "\u{F035B}"          // md-memory (a chip)
+    readonly property string glyphMemory: "\u{EFC5}"        // fa-memory (RAM stick)
     readonly property string glyphNetwork: "\u{F04E2}"      // md-swap_vertical
     readonly property string glyphGpu: "\u{F08AE}"         // md-expansion_card
     readonly property string glyphDisk: "\u{F02CA}"         // md-harddisk
@@ -58,6 +67,7 @@ QtObject {
     readonly property int gap: 8            // inside a card
     readonly property int sectionGap: 12    // graph to the rows under it
     readonly property int radius: 4
+    readonly property int cardBorderWidth: 2
     readonly property int cardTitleHeight: 22
     readonly property int titleGap: 10      // card title to body
     readonly property int cardChrome: 2 * cardPad + cardTitleHeight + titleGap

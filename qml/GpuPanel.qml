@@ -4,7 +4,7 @@ import "."
 // Placeholder until the GPU collector (M5): the full layout, every value "--".
 Card {
     title: "GPU"
-    glyph: Config.glyphGpu
+    icon: GpuIcon {}
 
     headerRight: Row {
         spacing: Config.blockGap

@@ -4,6 +4,7 @@ import "."
 Card {
     title: "Memory"
     glyph: Config.glyphMemory
+    glyphSize: Config.iconSizeWide
 
     headerRight: Row {
         spacing: Config.blockGap

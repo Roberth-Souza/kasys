@@ -5,9 +5,9 @@ import "."
 Card {
     id: root
 
+    // The GPU is drawn (GpuIcon), not a glyph.
     readonly property var glyphs: ({
-        "cpu": Config.glyphChip,
-        "gpu": Config.glyphGpu,
+        "cpu": Config.glyphCpu,
         "disk": Config.glyphDisk
     })
 
@@ -21,22 +21,41 @@ Card {
             model: monitor.temperatures
 
             Item {
+                id: entry
+
                 required property var modelData
 
                 width: parent.width
                 height: Config.temperatureRowHeight
 
                 Row {
-                    anchors.verticalCenter: parent.verticalCenter
+                    height: parent.height
                     spacing: Config.gap
 
-                    Label {
-                        text: root.glyphs[modelData.kind] ?? Config.glyphTemperature
-                        font.pixelSize: Config.glyphSize
+                    Item {
+                        width: Config.iconWidth
+                        height: parent.height
+
+                        GpuIcon {
+                            visible: entry.modelData.kind === "gpu"
+                            anchors.centerIn: parent
+                        }
+
+                        Label {
+                            visible: entry.modelData.kind !== "gpu"
+                            anchors.fill: parent
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            elide: Text.ElideNone
+                            text: root.glyphs[entry.modelData.kind] ?? Config.glyphTemperature
+                            font.pixelSize: Config.iconSize
+                        }
                     }
 
                     Label {
-                        text: modelData.name
+                        height: parent.height
+                        verticalAlignment: Text.AlignVCenter
+                        text: entry.modelData.name.toUpperCase()
                     }
                 }
 

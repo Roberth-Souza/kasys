@@ -9,13 +9,16 @@ Rectangle {
 
     property string title: ""
     property string glyph: ""
+    property int glyphSize: Config.iconSize
+    // Drawn in the glyph cell instead of `glyph` when set (e.g. GpuIcon).
+    property Component icon: null
     default property alias content: body.data
     property alias headerLeft: extra.data
     property alias headerRight: controls.data
 
     color: Config.cardBg
     border.color: Config.border
-    border.width: 1
+    border.width: Config.cardBorderWidth
     radius: 0
 
     Row {
@@ -28,10 +31,24 @@ Rectangle {
         anchors.left: parent.left
         anchors.margins: Config.cardPad
 
-        Label {
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.glyph
-            font.pixelSize: Config.glyphSize
+        Item {
+            width: Config.iconWidth
+            height: parent.height
+
+            Label {
+                visible: root.icon === null
+                anchors.fill: parent
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideNone
+                text: root.glyph
+                font.pixelSize: root.glyphSize
+            }
+
+            Loader {
+                anchors.centerIn: parent
+                sourceComponent: root.icon
+            }
         }
 
         Label {
