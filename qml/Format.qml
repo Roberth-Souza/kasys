@@ -61,6 +61,8 @@ QtObject {
         return days + (days === 1 ? " day, " : " days, ") + clock;
     }
 
+    function days(n) { return n < 0 ? missing : n + (n === 1 ? " day" : " days"); }
+
     function text(s) { return s === "" ? missing : s; }
 
     // A round axis top for an auto-scaled graph: 1, 2 or 5 times a power of

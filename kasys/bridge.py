@@ -16,6 +16,7 @@ import re
 import sys
 from collections import deque
 from collections.abc import Callable
+from datetime import datetime
 
 from PySide6.QtCore import Property, QCoreApplication, QObject, QTimer, Signal, Slot
 
@@ -161,7 +162,7 @@ class Monitor(QObject):
         # System info is read once per opening: at launch, and again by
         # main.py each time a daemon's window is shown.
         self._sys: sysinfo.SysInfo | None = None
-        self._install_date = ""
+        self._install_date: datetime | None = None
         self.read_system_info()
 
         # Memory, disk space and sensors need no previous reading, so the first
@@ -176,8 +177,7 @@ class Monitor(QObject):
 
     def read_system_info(self) -> None:
         self._sys = _read("system info", sysinfo.get_sys_info, None)
-        install_date = _read("install date", sysinfo.get_install_date, None)
-        self._install_date = install_date.date().isoformat() if install_date else ""
+        self._install_date = _read("install date", sysinfo.get_install_date, None)
         self.systemInfoChanged.emit()
 
     def _read_levels(self) -> None:
@@ -314,12 +314,16 @@ class Monitor(QObject):
     def _get_uptime(self) -> float:
         return self._sys.uptime if self._sys else MISSING
 
-    def _get_install_date(self) -> str:
-        return self._install_date
+    def _get_os_age_days(self) -> int:
+        # Calendar days in local time: installed yesterday at 23:00 is 1 day.
+        if self._install_date is None:
+            return MISSING
+        today = datetime.now().astimezone().date()
+        return (today - self._install_date.astimezone().date()).days
 
     hostname = Property(str, _get_hostname, notify=systemInfoChanged)
     osName = Property(str, _get_os_name, notify=systemInfoChanged)
     # Seconds.
     uptime = Property(float, _get_uptime, notify=systemInfoChanged)
-    # ISO date, or "" when pacman.log could not be read.
-    installDate = Property(str, _get_install_date, notify=systemInfoChanged)
+    # Days since install; notified every tick so it turns over at midnight.
+    osAgeDays = Property(int, _get_os_age_days, notify=tick)

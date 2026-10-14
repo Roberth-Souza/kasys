@@ -38,7 +38,7 @@ Card {
                     { "key": "Hostname", "value": Format.text(monitor.hostname) },
                     { "key": "OS", "value": Format.text(monitor.osName) },
                     { "key": "Uptime", "value": Format.uptime(monitor.uptime) },
-                    { "key": "Installed", "value": Format.text(monitor.installDate) }
+                    { "key": "OS age", "value": Format.days(monitor.osAgeDays) }
                 ]
 
                 Row {
