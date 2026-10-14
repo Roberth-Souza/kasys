@@ -1,5 +1,6 @@
 cache-dir = "~/.cache/ruff"
 line-length = 120
+target-version = "py314"
 
 [lint]
 extend-select = ["ANN001", "ANN201"]
