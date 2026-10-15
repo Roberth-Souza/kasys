@@ -109,10 +109,12 @@ QtObject {
     readonly property int gpuRows: 4
     readonly property int gpuRowHeight: 20
 
-    readonly property int processRows: 12
     readonly property int processRowHeight: 20
     readonly property int pidWidth: 64
     readonly property int processPercentWidth: 56
+    readonly property int processMemWidth: 88
+    readonly property int processTableTop: 6     // card title to the column labels
+    readonly property int processHeaderGap: 6    // column labels to the first row
 
     readonly property int temperatureRowHeight: 26
 

@@ -20,13 +20,15 @@ from datetime import datetime
 
 from PySide6.QtCore import Property, QCoreApplication, QObject, QTimer, QUrl, Signal, Slot
 
-from kasys.collectors import avatar, cpu, disk, mem, network, sensors
+from kasys.collectors import avatar, cpu, disk, mem, network, processes, sensors
 from kasys.collectors import sys as sysinfo
 
 TICK_MS = 1000
 # One minute of samples at one per second: what every graph spans.
 HISTORY_LENGTH = 60
 BYTES_PER_KB = 1024
+# Rows in the Overview's "Top by memory" card.
+TOP_PROCESSES = 12
 # What a property reads when its source failed; QML draws it as "--".
 MISSING = -1
 
@@ -141,6 +143,7 @@ class Monitor(QObject):
         self._cpu_sample = cpu.CpuSample()
         self._net_sample = network.NetSample()
         self._disk_sample: disk.DiskSample | None = _read("disk activity", disk.DiskSample, None)
+        self._process_sample: processes.ProcessSample | None = _read("processes", processes.ProcessSample, None)
 
         self._cpu_usage = 0.0
         self._cpu_freq = MISSING
@@ -152,6 +155,7 @@ class Monitor(QObject):
         # Active time % per physical disk, mounted or not.
         self._disk_activity: dict[str, float] = {}
         self._sensors: dict[str, list[sensors.Sensor]] = {}
+        self._top_processes: list[processes.Process] = []
 
         self._cpu_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
         self._mem_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
@@ -196,6 +200,7 @@ class Monitor(QObject):
         self._net = _read("network", self._net_sample.get_net_speed, network.NetSpeed(0.0, 0.0))
         self._read_levels()
         self._sample_disk_activity()
+        self._sample_processes()
 
         self._cpu_history.append(self._cpu_usage)
         self._mem_history.append(self._mem_percent())
@@ -214,6 +219,16 @@ class Monitor(QObject):
             history[name] = self._disk_activity_history.get(name, deque(maxlen=HISTORY_LENGTH))
             history[name].append(percent)
         self._disk_activity_history = history
+
+    def _sample_processes(self) -> None:
+        if self._process_sample is None:
+            return
+        found = _read("processes", self._process_sample.returns_process, None)
+        if found is None:
+            return
+        # Ties break on CPU, then PID, so equal rows keep their place.
+        found.sort(key=lambda p: (-p.mem_bytes, -p.cpu_percent, p.pid))
+        self._top_processes = found[:TOP_PROCESSES]
 
     def _mem_percent(self) -> float:
         if self._mem is None:
@@ -289,6 +304,22 @@ class Monitor(QObject):
     # One dict per hwmon chip with temperatures: display name, glyph kind
     # ("cpu", "gpu", "disk" or "" for an unknown chip) and celsius.
     temperatures = Property(list, _get_temperatures, notify=tick)
+
+    # -- processes -----------------------------------------------------------
+    def _get_top_processes(self) -> list[dict[str, object]]:
+        return [
+            {
+                "pid": process.pid,
+                "name": process.name,
+                "cpu": process.cpu_percent,
+                "mem": float(process.mem_bytes),
+            }
+            for process in self._top_processes
+        ]
+
+    # Up to TOP_PROCESSES dicts, largest memory first: pid, name (comm, up to 15
+    # chars), cpu (0..100 of the whole machine) and mem (RSS bytes).
+    topProcesses = Property(list, _get_top_processes, notify=tick)
 
     # -- network (bytes/s) ---------------------------------------------------
     def _get_net_down(self) -> float:
