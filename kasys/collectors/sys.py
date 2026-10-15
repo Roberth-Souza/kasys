@@ -1,5 +1,7 @@
 """Collects System Info"""
 
+import os
+import pwd
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -11,6 +13,7 @@ class SysInfo:
     hostname: str
     os_name: str
     uptime: float
+    shell_name: str
 
 
 def read_hostname_proc() -> str:
@@ -69,13 +72,20 @@ def get_sys_info() -> SysInfo:
     os_name = parse_os_name(unparsed_os_name)
     unparsed_uptime = read_uptime_proc()
     uptime = parse_uptime_proc(unparsed_uptime)
-    return SysInfo(hostname, os_name, uptime)
+    shell_name = get_shell_name()
+    return SysInfo(hostname, os_name, uptime, shell_name)
 
 
 def get_install_date() -> datetime:
     unparsed_install_date = read_install_date()
     install_date = parse_install_date(unparsed_install_date)
     return install_date
+
+
+def get_shell_name() -> str:
+    user_uid = os.getuid()
+    user_passwd = pwd.getpwuid(user_uid)
+    return os.path.basename(user_passwd.pw_shell)
 
 
 if __name__ == "__main__":

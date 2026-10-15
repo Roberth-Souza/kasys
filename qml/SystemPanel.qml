@@ -47,12 +47,14 @@ Card {
         Column {
             id: info
 
+            anchors.verticalCenter: parent.verticalCenter
             width: top.width - Config.avatarWidth - top.spacing
 
             Repeater {
                 model: [
                     { "key": "Hostname", "value": Format.text(monitor.hostname) },
                     { "key": "OS", "value": Format.text(monitor.osName) },
+                    { "key": "Shell", "value": Format.text(monitor.shellName) },
                     { "key": "Uptime", "value": Format.uptime(monitor.uptime) },
                     { "key": "OS age", "value": Format.days(monitor.osAgeDays) }
                 ]

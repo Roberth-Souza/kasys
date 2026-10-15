@@ -346,6 +346,9 @@ class Monitor(QObject):
     def _get_os_name(self) -> str:
         return self._sys.os_name if self._sys else ""
 
+    def _get_shell_name(self) -> str:
+        return self._sys.shell_name if self._sys else ""
+
     def _get_uptime(self) -> float:
         return self._sys.uptime if self._sys else MISSING
 
@@ -358,6 +361,7 @@ class Monitor(QObject):
 
     hostname = Property(str, _get_hostname, notify=systemInfoChanged)
     osName = Property(str, _get_os_name, notify=systemInfoChanged)
+    shellName = Property(str, _get_shell_name, notify=systemInfoChanged)
     # Seconds.
     uptime = Property(float, _get_uptime, notify=systemInfoChanged)
     # Days since install; notified every tick so it turns over at midnight.
