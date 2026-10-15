@@ -69,7 +69,7 @@ class ProcessSample:
                 process = Process(pid=pid, name=name, mem_bytes=rss_bytes, cpu_percent=process_tick_percentage)
                 processes.append(process)
 
-            except FileNotFoundError:
+            except FileNotFoundError, ProcessLookupError:
                 continue
 
         self.previous_ticks = current_ticks
@@ -94,7 +94,7 @@ def read_all_ticks() -> dict[int, int]:
             split_stats = split_stat_fields(stat)
             cpu_tick = parse_cpu_ticks(split_stats)
             pid_tick[pid] = cpu_tick
-        except FileNotFoundError:
+        except FileNotFoundError, ProcessLookupError:
             continue
     return pid_tick
 
