@@ -52,7 +52,7 @@ QtObject {
     readonly property string glyphDisk: "\u{F02CA}"         // md-harddisk
     readonly property string glyphProcesses: "\u{F0279}"    // md-format_list_bulleted
     readonly property string glyphTemperature: "\u{F050F}"  // md-thermometer
-    readonly property string glyphChip: "\u{F061A}"         // md-chip
+    readonly property string glyphHardware: "\u{F01C5}"     // md-desktop_tower
     readonly property string glyphSystem: "\u{F02FD}"       // md-information_outline
     readonly property string glyphOverview: "\u{F056E}"     // md-view_dashboard
     readonly property string glyphAvatar: "\u{F0013}"       // md-account_outline

@@ -12,7 +12,7 @@ Card {
         { "name": "System", "glyph": Config.glyphSystem },
         { "name": "Overview", "glyph": Config.glyphOverview },
         { "name": "Processes", "glyph": Config.glyphProcesses },
-        { "name": "Hardware", "glyph": Config.glyphChip },
+        { "name": "Hardware", "glyph": Config.glyphHardware },
         { "name": "Storage", "glyph": Config.glyphDisk }
     ]
 
