@@ -77,7 +77,7 @@ class ProcessSample:
 
 
 def calculates_total_tick() -> int:
-    raw_proc = cpu.read_cpu_proc()
+    raw_proc = cpu.read_stat_proc()
     parsed_proc = cpu.parse_stat(raw_proc)
     proc_sum = cpu.calc_proc_sum(parsed_proc).total
     return proc_sum
