@@ -11,12 +11,12 @@ the fallback value, so one broken source never takes the whole window down.
 
 from __future__ import annotations
 
-import os
 import re
 import sys
 from collections import deque
 from collections.abc import Callable
 from datetime import datetime
+from statistics import fmean
 
 from PySide6.QtCore import Property, QCoreApplication, QObject, QTimer, QUrl, Signal, Slot
 
@@ -29,6 +29,8 @@ HISTORY_LENGTH = 60
 BYTES_PER_KB = 1024
 # Rows in the Overview's "Top by memory" card.
 TOP_PROCESSES = 12
+# Rows under "TOP BY CPU" in the CPU card.
+TOP_CPU_PROCESSES = 3
 # What a property reads when its source failed; QML draws it as "--".
 MISSING = -1
 
@@ -156,6 +158,7 @@ class Monitor(QObject):
         self._disk_activity: dict[str, float] = {}
         self._sensors: dict[str, list[sensors.Sensor]] = {}
         self._top_processes: list[processes.Process] = []
+        self._top_cpu_processes: list[processes.Process] = []
 
         self._cpu_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
         self._mem_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
@@ -168,6 +171,9 @@ class Monitor(QObject):
         self._sys: sysinfo.SysInfo | None = None
         self._install_date: datetime | None = None
         self.read_system_info()
+
+        # Model and core counts never change while running: read once.
+        self._cpu_info: cpu.CpuInfo | None = _read("cpu info", cpu.get_cpu_info, None)
 
         # The avatar is resolved once at startup: changing it means a restart.
         avatar_path = _read("avatar", avatar.get_avatar_path, None)
@@ -226,7 +232,9 @@ class Monitor(QObject):
         found = _read("processes", self._process_sample.returns_process, None)
         if found is None:
             return
-        # Ties break on CPU, then PID, so equal rows keep their place.
+        # Ties break on the other column, then PID, so equal rows keep their place.
+        by_cpu = sorted(found, key=lambda p: (-p.cpu_percent, -p.mem_bytes, p.pid))
+        self._top_cpu_processes = by_cpu[:TOP_CPU_PROCESSES]
         found.sort(key=lambda p: (-p.mem_bytes, -p.cpu_percent, p.pid))
         self._top_processes = found[:TOP_PROCESSES]
 
@@ -245,15 +253,40 @@ class Monitor(QObject):
     def _get_cpu_history(self) -> list[float]:
         return list(self._cpu_history)
 
-    def _get_core_count(self) -> int:
-        return os.cpu_count() or 0
+    def _get_cpu_average(self) -> float:
+        return fmean(self._cpu_history) if self._cpu_history else MISSING
+
+    def _get_cpu_peak(self) -> float:
+        return max(self._cpu_history) if self._cpu_history else MISSING
+
+    def _get_cpu_model(self) -> str:
+        info = self._cpu_info
+        return info.model if info and info.model is not None else ""
+
+    def _get_cpu_cores(self) -> int:
+        info = self._cpu_info
+        return info.cores if info and info.cores is not None else MISSING
+
+    def _get_cpu_threads(self) -> int:
+        info = self._cpu_info
+        return info.threads if info and info.threads is not None else MISSING
+
+    def _get_top_cpu_processes(self) -> list[dict[str, object]]:
+        return [{"name": process.name, "cpu": process.cpu_percent} for process in self._top_cpu_processes]
 
     cpuUsage = Property(float, _get_cpu_usage, notify=tick)
     # kHz, or MISSING when cpufreq is not exposed.
     cpuFreq = Property(int, _get_cpu_freq, notify=tick)
     cpuHistory = Property(list, _get_cpu_history, notify=tick)
-    # Only sizes the per-core placeholder rows until a collector fills them.
-    coreCount = Property(int, _get_core_count, constant=True)
+    # Mean and max of cpuHistory, or MISSING before the first tick.
+    cpuAverage = Property(float, _get_cpu_average, notify=tick)
+    cpuPeak = Property(float, _get_cpu_peak, notify=tick)
+    # From /proc/cpuinfo at startup: "" / MISSING when the field is absent.
+    cpuModel = Property(str, _get_cpu_model, constant=True)
+    cpuCores = Property(int, _get_cpu_cores, constant=True)
+    cpuThreads = Property(int, _get_cpu_threads, constant=True)
+    # Up to TOP_CPU_PROCESSES dicts, busiest first: name and cpu (0..100).
+    topCpuProcesses = Property(list, _get_top_cpu_processes, notify=tick)
 
     # -- memory (bytes; floats because Qt's int is 32-bit) -------------------
     def _get_mem_total(self) -> float:

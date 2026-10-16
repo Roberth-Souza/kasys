@@ -32,6 +32,7 @@ QtObject {
     readonly property int fontSize: 12
     readonly property int fontSizeSmall: 11
     readonly property int fontSizeMedium: 14
+    readonly property int fontSizeLarge: 26
     readonly property int glyphSize: 14
     // Card heading and row icons. Sizes are matched by ink, not by number:
     // at 18 most glyphs draw about 14x15 px; the RAM stick is wide, so it
@@ -88,7 +89,7 @@ QtObject {
     // Graphs: one minute of samples, with the axis labels left of the plot.
     readonly property int historyLength: 60
     readonly property int graphHeight: 64
-    readonly property int cpuGraphHeight: 90
+    readonly property int cpuGraphHeight: 110
     readonly property int percentLabelWidth: 36
     readonly property int rateLabelWidth: 72
     readonly property int barHeight: 4
@@ -98,12 +99,12 @@ QtObject {
     readonly property int meterValueWidth: 72
     readonly property int dropdownWidth: 120
 
-    // Per-core rows: two columns, six rows covers 12 threads.
-    readonly property int coreRows: 6
-    readonly property int coreRowHeight: 18
-    readonly property int coreColumnGap: 16
-    readonly property int coreLabelWidth: 56
-    readonly property int corePercentWidth: 36
+    // CPU card: model + core counts, average / peak, top processes by CPU.
+    readonly property int cpuModelHeight: 20
+    readonly property int cpuCoresHeight: 18
+    readonly property int cpuStatLabelHeight: 18
+    readonly property int cpuStatHeight: 52
+    readonly property int cpuTopRows: 3
 
     readonly property int gpuNameHeight: 18
     readonly property int gpuRows: 4
@@ -125,8 +126,10 @@ QtObject {
     readonly property int infoRowHeight: 32
 
     // Fixed card heights; the last card of each column takes what is left.
-    readonly property int cpuCardHeight: cardChrome + cpuGraphHeight + sectionGap
-                                         + coreRows * coreRowHeight
+    // Header row + cpuTopRows rows under TOP BY CPU (bridge: TOP_CPU_PROCESSES).
+    readonly property int cpuCardHeight: cardChrome + cpuGraphHeight + 3 * sectionGap
+                                         + cpuModelHeight + cpuCoresHeight + cpuStatHeight
+                                         + (1 + cpuTopRows) * processRowHeight
     readonly property int memoryCardHeight: cardChrome + graphHeight + sectionGap
                                             + 2 * meterRowHeight
     readonly property int gpuCardHeight: cardChrome + graphHeight + sectionGap
