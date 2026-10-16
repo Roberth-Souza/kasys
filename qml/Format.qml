@@ -48,17 +48,18 @@ QtObject {
 
     function ghz(kHz) { return kHz < 0 ? missing : (kHz / 1e6).toFixed(2) + " GHz"; }
 
-    // "2 days, 14:32", or "14:32" under a day.
+    // "3d 4h", "2h 34m" or "34m": short enough for the big System card digits.
     function uptime(seconds) {
         if (seconds < 0)
             return missing;
         const days = Math.floor(seconds / 86400);
         const hours = Math.floor(seconds % 86400 / 3600);
         const minutes = Math.floor(seconds % 3600 / 60);
-        const clock = hours + ":" + String(minutes).padStart(2, "0");
-        if (days === 0)
-            return clock;
-        return days + (days === 1 ? " day, " : " days, ") + clock;
+        if (days > 0)
+            return days + "d " + hours + "h";
+        if (hours > 0)
+            return hours + "h " + minutes + "m";
+        return minutes + "m";
     }
 
     function days(n) { return n < 0 ? missing : n + (n === 1 ? " day" : " days"); }
