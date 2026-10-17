@@ -15,7 +15,7 @@ def read_config(path: str) -> str | None:
     try:
         with open(config, "r") as raw_config:
             config_content = raw_config.read()
-    except FileNotFoundError:
+    except OSError:
         return None
 
     return config_content

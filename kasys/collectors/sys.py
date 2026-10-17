@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from datetime import datetime
 
 OS_NAME_PATH = ("/etc/os-release", "/usr/lib/os-release")
+PROC_HOSTNAME = "/proc/sys/kernel/hostname"
+PROC_UPTIME = "/proc/uptime"
+PACMAN_LOG = "/var/log/pacman.log"
 
 
 @dataclass(frozen=True)
@@ -17,13 +20,13 @@ class SysInfo:
 
 
 def read_hostname_proc() -> str:
-    with open("/proc/sys/kernel/hostname", "r") as info:
+    with open(PROC_HOSTNAME, "r") as info:
         hostname_info = info.read()
         return hostname_info.strip()
 
 
 def read_install_date() -> str:
-    with open("/var/log/pacman.log", "r") as info:
+    with open(PACMAN_LOG, "r") as info:
         unparsed_install_date = info.readline()
         return unparsed_install_date
 
@@ -38,7 +41,7 @@ def parse_install_date(unparsed_install_date: str) -> datetime:
 
 
 def read_uptime_proc() -> str:
-    with open("/proc/uptime", "r") as info:
+    with open(PROC_UPTIME, "r") as info:
         uptime_info = info.read()
         return uptime_info
 
@@ -66,13 +69,19 @@ def parse_os_name(os_proc: str) -> str:
     return "Linux"  # os_name not found
 
 
+def read_shell_name() -> str:
+    user_uid = os.getuid()
+    user_passwd = pwd.getpwuid(user_uid)
+    return os.path.basename(user_passwd.pw_shell)
+
+
 def get_sys_info() -> SysInfo:
     hostname = read_hostname_proc()
     unparsed_os_name = read_os_name()
     os_name = parse_os_name(unparsed_os_name)
     unparsed_uptime = read_uptime_proc()
     uptime = parse_uptime_proc(unparsed_uptime)
-    shell_name = get_shell_name()
+    shell_name = read_shell_name()
     return SysInfo(hostname, os_name, uptime, shell_name)
 
 
@@ -80,12 +89,6 @@ def get_install_date() -> datetime:
     unparsed_install_date = read_install_date()
     install_date = parse_install_date(unparsed_install_date)
     return install_date
-
-
-def get_shell_name() -> str:
-    user_uid = os.getuid()
-    user_passwd = pwd.getpwuid(user_uid)
-    return os.path.basename(user_passwd.pw_shell)
 
 
 if __name__ == "__main__":

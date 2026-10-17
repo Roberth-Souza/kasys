@@ -26,7 +26,6 @@ from kasys.collectors import sys as sysinfo
 TICK_MS = 1000
 # One minute of samples at one per second: what every graph spans.
 HISTORY_LENGTH = 60
-BYTES_PER_KB = 1024
 # Rows in the Overview's "Top by memory" card.
 TOP_PROCESSES = 12
 # Rows under "TOP BY CPU" in the CPU card.
@@ -241,7 +240,7 @@ class Monitor(QObject):
     def _mem_percent(self) -> float:
         if self._mem is None:
             return 0.0
-        return _percent(self._mem.memory_usage, self._mem.total_memory)
+        return _percent(self._mem.used, self._mem.total)
 
     # -- CPU ---------------------------------------------------------------
     def _get_cpu_usage(self) -> float:
@@ -290,13 +289,13 @@ class Monitor(QObject):
 
     # -- memory (bytes; floats because Qt's int is 32-bit) -------------------
     def _get_mem_total(self) -> float:
-        return float(self._mem.total_memory * BYTES_PER_KB) if self._mem else MISSING
+        return float(self._mem.total) if self._mem else MISSING
 
     def _get_mem_used(self) -> float:
-        return float(self._mem.memory_usage * BYTES_PER_KB) if self._mem else MISSING
+        return float(self._mem.used) if self._mem else MISSING
 
     def _get_mem_available(self) -> float:
-        return float(self._mem.available_memory * BYTES_PER_KB) if self._mem else MISSING
+        return float(self._mem.available) if self._mem else MISSING
 
     def _get_mem_percent(self) -> float:
         return self._mem_percent()
