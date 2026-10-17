@@ -135,7 +135,11 @@ def calc_partition_space(stats: os.statvfs_result) -> DiskInfo:
 def read_partition_space(parsed_disk_mounts: dict[str, str]) -> dict[str, DiskInfo]:
     partition_info: dict[str, DiskInfo] = {}
     for partition, mount_point in parsed_disk_mounts.items():
-        stats = os.statvfs(mount_point)
+        try:
+            stats = os.statvfs(mount_point)
+        except OSError as error:
+            warnings.warn(f"os.statvfs failed: {error}")
+            continue
         partition_info[partition] = calc_partition_space(stats)
     return partition_info
 
@@ -146,6 +150,8 @@ def pick_largest_partition(
 ) -> dict[str, DiskInfo]:
     max_partitions: dict[str, DiskInfo] = {}
     for partition, disk in mapped_partitions.items():
+        if partition not in partition_space:
+            continue
         space = partition_space[partition]
         if disk not in max_partitions or max_partitions[disk].total < space.total:
             max_partitions[disk] = space
