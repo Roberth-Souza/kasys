@@ -63,9 +63,12 @@ def read_os_name() -> str:
 
 def parse_os_name(os_proc: str) -> str:
     for line in os_proc.splitlines():
-        if "PRETTY_NAME" in line:
+        if line.startswith("PRETTY_NAME="):
             parsed_line = line.split("=", 1)
-            return parsed_line[1].strip("\"'")
+            pretty_name = parsed_line[1].strip("\"'")
+            if not pretty_name:
+                return "Linux"
+            return pretty_name
     return "Linux"  # os_name not found
 
 
