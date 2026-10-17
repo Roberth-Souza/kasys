@@ -1,10 +1,13 @@
 """Collects network data lol :)"""
 
+import glob
 import time
 from dataclasses import dataclass
 
+NET_DEVICES_PATH = "/sys/class/net/*/device"
 PROC_NET_DEV = "/proc/net/dev"
 VALID_LINES = slice(2, None)
+DEVICE_NAME_POSITION = 4
 DOWNLOAD_POSITION = 0
 UPLOAD_POSITION = 8
 
@@ -23,11 +26,13 @@ class NetSpeed:
 
 class NetSample:
     def __init__(self) -> None:
-        self.previous_sample: NetInfo = parse_net_proc(read_net_proc())
+        current_device_names: set[str] = parse_device_names(read_net_devices())
+        self.previous_sample: NetInfo = parse_net_proc(read_net_proc(), current_device_names)
         self.previous_collect_time: float = time.monotonic()
 
     def get_net_speed(self) -> NetSpeed:
-        current_sample = parse_net_proc(read_net_proc())
+        current_device_names: set[str] = parse_device_names(read_net_devices())
+        current_sample = parse_net_proc(read_net_proc(), current_device_names)
         current_collect_time = time.monotonic()
         time_delta = current_collect_time - self.previous_collect_time
         speed = calc_net_speed(self.previous_sample, current_sample, time_delta)
@@ -37,18 +42,27 @@ class NetSample:
         return speed
 
 
+def read_net_devices() -> list[str]:
+    net_devices_paths = glob.glob(NET_DEVICES_PATH)
+    return net_devices_paths
+
+
+def parse_device_names(raw_net_devices_path: list[str]) -> set[str]:
+    return {device.split("/")[DEVICE_NAME_POSITION] for device in raw_net_devices_path}
+
+
 def read_net_proc() -> str:
     with open(PROC_NET_DEV, "r") as proc:
         raw_proc = proc.read()
         return raw_proc
 
 
-def parse_net_proc(raw_proc: str) -> NetInfo:
+def parse_net_proc(raw_proc: str, physical_names: set[str]) -> NetInfo:
     download, upload = 0, 0
     split_lines = raw_proc.splitlines()
     for line in split_lines[VALID_LINES]:
         name, rest = line.split(":", 1)
-        if name.strip() == "lo":
+        if name.strip() not in physical_names:
             continue
         fields = rest.split()
         download += int(fields[DOWNLOAD_POSITION])
