@@ -42,8 +42,11 @@ def read_sensors(folder: str) -> list[Sensor]:
         except FileNotFoundError:
             label = os.path.basename(prefix)
 
-        with open(input_path, "r") as raw:
-            result.append(Sensor(label, parse_temperature(raw.read())))
+        try:
+            with open(input_path, "r") as raw:
+                result.append(Sensor(label, parse_temperature(raw.read())))
+        except ValueError, OSError:
+            continue
 
     return result
 
