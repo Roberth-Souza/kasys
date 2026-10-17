@@ -229,7 +229,7 @@ class Monitor(QObject):
     def _sample_processes(self) -> None:
         if self._process_sample is None:
             return
-        found = _read("processes", self._process_sample.returns_process, None)
+        found = _read("processes", self._process_sample.get_processes, None)
         if found is None:
             return
         # Ties break on the other column, then PID, so equal rows keep their place.

@@ -8,6 +8,18 @@ import time
 import warnings
 from dataclasses import dataclass
 
+PROC_STAT = "/proc/stat"
+PROC_CPU_INFO = "/proc/cpuinfo"
+CPU_FILES = "/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq"
+IDLE_POSITION = 3
+IOWAIT_POSITION = 4
+MODEL_NAME_KEY = "model name"
+CPU_NAME_CUTS = (" @", " w/", " with")
+CPU_NAME_JUNK = ("(R)", "(TM)", " CPU")
+CORES_COUNT_KEY = "cpu cores"
+THREADS_COUNT_KEY = "siblings"
+VALID_CPU_STATS = slice(1, 9)
+
 
 @dataclass(frozen=True)
 class CpuTimes:
@@ -22,34 +34,43 @@ class CpuInfo:
     threads: int | None
 
 
-MODEL_NAME_KEY = "model name"
-CPU_NAME_CUTS = (" @", " w/", " with")
-CPU_NAME_JUNK = ("(R)", "(TM)", " CPU")
-CORES_COUNT_KEY = "cpu cores"
-THREADS_COUNT_KEY = "siblings"
-IDLE_POSITION = 3
-IOWAIT_POSITION = 4
-VALID_CPU_STATS = slice(1, 9)
-PROC_STAT = "/proc/stat"
-PROC_CPU_INFO = "/proc/cpuinfo"
-CPU_FILES = "/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq"
-
-
 class CpuSample:
     def __init__(self) -> None:
         self.previous_sample: CpuTimes = calc_proc_sum(parse_stat(read_stat_proc()))
 
     def get_cpu_usage(self) -> float:
         current_sample: CpuTimes = calc_proc_sum(parse_stat(read_stat_proc()))
-        delta = calculates_delta(self.previous_sample, current_sample)
+        usage = calc_usage_percentage(self.previous_sample, current_sample)
         self.previous_sample = current_sample
-        return delta
+        return usage
 
 
 def read_stat_proc() -> str:
     with open(PROC_STAT, "r") as proc:
         cpu_stats = proc.read()
         return cpu_stats
+
+
+def parse_stat(cpu_stats: str) -> list[int]:
+    first_line = cpu_stats.splitlines()[0]
+    split_first_line = first_line.split()
+    integer_stats = [int(stat) for stat in split_first_line[VALID_CPU_STATS]]
+    return integer_stats
+
+
+def calc_proc_sum(integer_stats: list[int]) -> CpuTimes:
+    total = sum(integer_stats)
+    idle = integer_stats[IDLE_POSITION] + integer_stats[IOWAIT_POSITION]
+    return CpuTimes(total=total, idle=idle)
+
+
+def calc_usage_percentage(previous_sample: CpuTimes, current_sample: CpuTimes) -> float:
+    delta_idle = current_sample.idle - previous_sample.idle
+    delta_total = current_sample.total - previous_sample.total
+    if delta_total == 0:
+        return 0.0
+    usage = 100 * (delta_total - delta_idle) / delta_total
+    return usage
 
 
 def read_cpuinfo_proc() -> str:
@@ -89,36 +110,8 @@ def read_cpu_frequencies() -> list[int]:
     return cpu_frequencies
 
 
-def calculates_frequency(cpu_frequencies: list[int]) -> int:
+def calc_frequency(cpu_frequencies: list[int]) -> int:
     return sum(cpu_frequencies) // len(cpu_frequencies)
-
-
-def parse_stat(cpu_stats: str) -> list[int]:
-    first_line = cpu_stats.splitlines()[0]
-    splitted_first_line = first_line.split()
-    integer_stats = [int(stat) for stat in splitted_first_line[VALID_CPU_STATS]]
-    return integer_stats
-
-
-def calc_proc_sum(integer_stats: list[int]) -> CpuTimes:
-    total = sum(integer_stats)
-    idle = integer_stats[IDLE_POSITION] + integer_stats[IOWAIT_POSITION]
-    return CpuTimes(total=total, idle=idle)
-
-
-def calculates_delta(previous_sample: CpuTimes, current_sample: CpuTimes) -> float:
-    delta_idle = current_sample.idle - previous_sample.idle
-    delta_total = current_sample.total - previous_sample.total
-    if delta_total == 0:
-        return 0.0
-    delta = 100 * (delta_total - delta_idle) / delta_total
-    return delta
-
-
-def get_cpu_freq() -> int:
-    cpu_frequencies = read_cpu_frequencies()
-    frequency = calculates_frequency(cpu_frequencies)
-    return frequency
 
 
 def get_cpu_info() -> CpuInfo:
@@ -138,11 +131,17 @@ def get_cpu_info() -> CpuInfo:
     return CpuInfo(model=parsed_cpu_model, cores=cpu_cores, threads=cpu_threads)
 
 
+def get_cpu_freq() -> int:
+    cpu_frequencies = read_cpu_frequencies()
+    frequency = calc_frequency(cpu_frequencies)
+    return frequency
+
+
 if __name__ == "__main__":
     print(get_cpu_info())
-    previous_sample = CpuSample()
+    sampler = CpuSample()
     while True:
         print(f"frequencia da CPU: {get_cpu_freq()}")
         time.sleep(1)
-        delta_percentage = previous_sample.get_cpu_usage()
-        print(f"{delta_percentage:.0f}%")
+        usage = sampler.get_cpu_usage()
+        print(f"{usage:.0f}%")

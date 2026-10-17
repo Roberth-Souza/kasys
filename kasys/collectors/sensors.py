@@ -5,6 +5,8 @@ import os
 import re
 from dataclasses import dataclass
 
+SYS_HWMON_CHIPS = "/sys/class/hwmon/hwmon*"
+
 
 @dataclass(frozen=True)
 class Sensor:
@@ -12,7 +14,7 @@ class Sensor:
     celsius: float
 
 
-def path_number(path: str) -> int:
+def parse_path_number(path: str) -> int:
     name = os.path.basename(path)
     match = re.search(r"\d+", name)
     if match is None:
@@ -21,11 +23,11 @@ def path_number(path: str) -> int:
 
 
 def sort_paths(paths: list[str]) -> list[str]:
-    return sorted(paths, key=path_number)
+    return sorted(paths, key=parse_path_number)
 
 
-def collect_hwmon_path() -> list[str]:
-    paths = sort_paths(glob.glob("/sys/class/hwmon/hwmon*"))
+def read_hwmon_path() -> list[str]:
+    paths = sort_paths(glob.glob(SYS_HWMON_CHIPS))
     return paths
 
 
@@ -50,13 +52,13 @@ def parse_temperature(temperature: str) -> float:
     return int(temperature) / 1000
 
 
-def extract_chip_name(path: str) -> str:
+def read_chip_name(path: str) -> str:
     location = path + "/name"
     with open(location, "r") as raw:
         return raw.read().strip()
 
 
-def unique_name(name: str, result: dict[str, list[Sensor]]) -> str:
+def make_unique_name(name: str, result: dict[str, list[Sensor]]) -> str:
     candidate = name
     counter = 1
     while candidate in result:
@@ -67,16 +69,16 @@ def unique_name(name: str, result: dict[str, list[Sensor]]) -> str:
 
 
 def get_sensors_info() -> dict[str, list[Sensor]]:
-    collected_paths = collect_hwmon_path()
+    collected_paths = read_hwmon_path()
     result: dict[str, list[Sensor]] = {}
     for path in collected_paths:
         try:
-            raw_name = extract_chip_name(path)
+            raw_name = read_chip_name(path)
             sensors = read_sensors(path)
         except FileNotFoundError:
             continue
         if sensors:
-            name = unique_name(raw_name, result)
+            name = make_unique_name(raw_name, result)
             result[name] = sensors
 
     return result
