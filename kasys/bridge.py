@@ -38,6 +38,7 @@ MISSING = -1
 # under its raw name with its first sensor.
 KNOWN_CHIPS: dict[str, tuple[str, str, str]] = {
     "k10temp": ("CPU", "cpu", "Tctl"),
+    "coretemp": ("CPU", "cpu", "Package id 0"),
     "amdgpu": ("GPU", "gpu", "edge"),
     "nvme": ("NVMe", "disk", "Composite"),
 }
