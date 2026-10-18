@@ -20,7 +20,7 @@ from statistics import fmean
 
 from PySide6.QtCore import Property, QCoreApplication, QObject, QTimer, QUrl, Signal, Slot
 
-from kasys.collectors import avatar, cpu, disk, mem, network, processes, sensors
+from kasys.collectors import avatar, cpu, disk, gpu, mem, network, processes, sensors
 from kasys.collectors import sys as sysinfo
 
 TICK_MS = 1000
@@ -159,12 +159,14 @@ class Monitor(QObject):
         self._sensors: dict[str, list[sensors.Sensor]] = {}
         self._top_processes: list[processes.Process] = []
         self._top_cpu_processes: list[processes.Process] = []
+        self._gpu: gpu.GpuStats | None = None
 
         self._cpu_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
         self._mem_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
         self._disk_activity_history: dict[str, deque[float]] = {}
         self._down_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
         self._up_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
+        self._gpu_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
 
         # System info is read once per opening: at launch, and again by
         # main.py each time a daemon's window is shown.
@@ -175,11 +177,22 @@ class Monitor(QObject):
         # Model and core counts never change while running: read once.
         self._cpu_info: cpu.CpuInfo | None = _read("cpu info", cpu.get_cpu_info, None)
 
+        # The card is found once: a GPU is never hot-plugged.
+        self._gpu_dir: str | None = _read("gpu", gpu.find_gpu_dir, None)
+        self._gpu_hwmon: str | None = None
+        self._gpu_name = ""
+        if self._gpu_dir is not None:
+            gpu_dir = self._gpu_dir
+            self._gpu_hwmon = gpu.find_hwmon_path(gpu_dir)
+            name = _read("gpu name", lambda: gpu.get_gpu_name(gpu_dir), None)
+            # The card header already says GPU; the vendor is noise next to it.
+            self._gpu_name = name.removeprefix("AMD ") if name else ""
+
         # The avatar is resolved once at startup: changing it means a restart.
         avatar_path = _read("avatar", avatar.get_avatar_path, None)
         self._avatar_url = QUrl.fromLocalFile(avatar_path).toString() if avatar_path else ""
 
-        # Memory, disk space and sensors need no previous reading, so the first
+        # Memory, disk space, sensors and the GPU need no previous reading, so the first
         # frame already has them. CPU and network are deltas and wait for the
         # first tick.
         self._read_levels()
@@ -198,6 +211,13 @@ class Monitor(QObject):
         self._mem = _read("memory", mem.get_mem_info, self._mem)
         self._disk_space = _read("disk space", disk.get_disk_space, self._disk_space)
         self._sensors = _read("sensors", sensors.get_sensors_info, self._sensors)
+        self._read_gpu()
+
+    def _read_gpu(self) -> None:
+        if self._gpu_dir is None:
+            return
+        gpu_dir, hwmon = self._gpu_dir, self._gpu_hwmon
+        self._gpu = _read("gpu stats", lambda: gpu.get_gpu_stats(gpu_dir, hwmon), None)
 
     @Slot()
     def _sample(self) -> None:
@@ -212,6 +232,8 @@ class Monitor(QObject):
         self._mem_history.append(self._mem_percent())
         self._down_history.append(self._net.download)
         self._up_history.append(self._net.upload)
+        if self._gpu_dir is not None:
+            self._gpu_history.append(self._gpu.busy_percentage if self._gpu else 0.0)
         self.tick.emit()
 
     def _sample_disk_activity(self) -> None:
@@ -237,6 +259,13 @@ class Monitor(QObject):
         self._top_cpu_processes = by_cpu[:TOP_CPU_PROCESSES]
         found.sort(key=lambda p: (-p.mem_bytes, -p.cpu_percent, p.pid))
         self._top_processes = found[:TOP_PROCESSES]
+
+    def _gpu_celsius(self, label: str) -> float:
+        """One sensor of the amdgpu hwmon chip (edge, junction, mem), or MISSING."""
+        for key, chip_sensors in self._sensors.items():
+            if _known_chip(key)[0] == "amdgpu":
+                return next((s.celsius for s in chip_sensors if s.label == label), MISSING)
+        return MISSING
 
     def _mem_percent(self) -> float:
         if self._mem is None:
@@ -287,6 +316,48 @@ class Monitor(QObject):
     cpuThreads = Property(int, _get_cpu_threads, constant=True)
     # Up to TOP_CPU_PROCESSES dicts, busiest first: name and cpu (0..100).
     topCpuProcesses = Property(list, _get_top_cpu_processes, notify=tick)
+
+    # -- GPU ---------------------------------------------------------------
+    def _get_gpu_name(self) -> str:
+        return self._gpu_name
+
+    def _get_gpu_usage(self) -> float:
+        return self._gpu.busy_percentage if self._gpu else MISSING
+
+    def _get_gpu_history(self) -> list[float]:
+        return list(self._gpu_history)
+
+    def _get_gpu_vram_used(self) -> float:
+        return float(self._gpu.vram_used) if self._gpu else MISSING
+
+    def _get_gpu_vram_total(self) -> float:
+        return float(self._gpu.vram_total) if self._gpu else MISSING
+
+    def _get_gpu_temp(self) -> float:
+        return self._gpu_celsius("edge")
+
+    def _get_gpu_clock(self) -> float:
+        clock = self._gpu.clock if self._gpu else None
+        return float(clock) if clock is not None else MISSING
+
+    def _get_gpu_fan(self) -> int:
+        fan = self._gpu.fan_rpm if self._gpu else None
+        return fan if fan is not None else MISSING
+
+    # From amdgpu.ids at startup, "AMD " dropped; "" when unknown or no GPU.
+    gpuName = Property(str, _get_gpu_name, constant=True)
+    # 0..100, or MISSING without an amdgpu card.
+    gpuUsage = Property(float, _get_gpu_usage, notify=tick)
+    gpuHistory = Property(list, _get_gpu_history, notify=tick)
+    # Bytes, floats because Qt's int is 32-bit.
+    gpuVramUsed = Property(float, _get_gpu_vram_used, notify=tick)
+    gpuVramTotal = Property(float, _get_gpu_vram_total, notify=tick)
+    # °C of the edge sensor.
+    gpuTemp = Property(float, _get_gpu_temp, notify=tick)
+    # Hz (shader clock): float, since 2.5 GHz overflows a 32-bit int.
+    gpuClock = Property(float, _get_gpu_clock, notify=tick)
+    # RPM, or MISSING when the card has no fan reading.
+    gpuFan = Property(int, _get_gpu_fan, notify=tick)
 
     # -- memory (bytes; floats because Qt's int is 32-bit) -------------------
     def _get_mem_total(self) -> float:

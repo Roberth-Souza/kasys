@@ -33,6 +33,7 @@ QtObject {
     readonly property int fontSizeSmall: 11
     readonly property int fontSizeMedium: 14
     readonly property int fontSizeLarge: 26
+    readonly property int fontSizeHuge: 40     // GPU utilization: "100%" still fits gpuUsageWidth
     readonly property int glyphSize: 14
     // Card heading and row icons. Sizes are matched by ink, not by number:
     // at 18 most glyphs draw about 14x15 px; the RAM stick is wide, so it
@@ -106,9 +107,13 @@ QtObject {
     readonly property int cpuStatHeight: 52
     readonly property int cpuTopRows: 3
 
+    // GPU card: name, utilization + graph, VRAM bar, TEMP | CLOCK | FAN.
     readonly property int gpuNameHeight: 18
-    readonly property int gpuRows: 4
-    readonly property int gpuRowHeight: 20
+    readonly property int gpuUsageWidth: 110    // big % and its label, left of the graph
+    readonly property int gpuGraphHeight: 80
+    readonly property int gpuSpanHeight: 16     // "60s" under the graph
+    readonly property int gpuVramBarHeight: 8
+    readonly property int gpuStatHeight: 40
 
     readonly property int processRowHeight: 20
     readonly property int pidWidth: 64
@@ -131,9 +136,10 @@ QtObject {
                                          + (1 + cpuTopRows) * processRowHeight
     readonly property int memoryCardHeight: cardChrome + graphHeight + sectionGap
                                             + 2 * meterRowHeight
-    readonly property int gpuCardHeight: cardChrome + graphHeight + sectionGap
-                                         + gpuNameHeight + gap
-                                         + gpuRows * gpuRowHeight
+    readonly property int gpuCardHeight: cardChrome + 4 * sectionGap + gpuNameHeight
+                                         + gpuGraphHeight + gpuSpanHeight
+                                         + meterRowHeight + gap + gpuVramBarHeight
+                                         + 1 + gpuStatHeight
     // Plus one meterRowHeight per disk row: see Overview.
     readonly property int diskCardBaseHeight: cardChrome + graphHeight + sectionGap
     // Plus one temperatureRowHeight per chip: see Overview.

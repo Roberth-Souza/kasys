@@ -46,6 +46,12 @@ QtObject {
         };
     }
 
+    function mhz(hz) { return hz < 0 ? missing : Math.round(hz / 1e6) + " MHz"; }
+
+    function celsius(v) { return v < 0 ? missing : Math.round(v) + "°C"; }
+
+    function rpm(n) { return n < 0 ? missing : n + " RPM"; }
+
     function ghz(kHz) { return kHz < 0 ? missing : (kHz / 1e6).toFixed(2) + " GHz"; }
 
     // "3d 4h", "2h 34m" or "34m": short enough for the big System card digits.
