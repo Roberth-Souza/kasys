@@ -105,12 +105,12 @@ Window {
 
                 Overview {
                     anchors.fill: parent
-                    visible: sidebar.activeTab === 1
+                    visible: sidebar.activeTab === 0
                 }
 
                 PlaceholderPage {
                     anchors.fill: parent
-                    visible: sidebar.activeTab !== 1
+                    visible: sidebar.activeTab !== 0
                     name: sidebar.tabs[sidebar.activeTab].name
                     pageGlyph: sidebar.tabs[sidebar.activeTab].glyph
                 }

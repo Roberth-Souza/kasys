@@ -56,7 +56,7 @@ QtObject {
     readonly property string glyphTemperature: "\u{F050F}"  // md-thermometer
     readonly property string glyphHardware: "\u{F01C5}"     // md-desktop_tower
     readonly property string glyphSystem: "\u{F02FD}"       // md-information_outline
-    readonly property string glyphOverview: "\u{F056E}"     // md-view_dashboard
+    readonly property string glyphOverview: "\u{F0570}"     // md-view_grid
     readonly property string glyphAvatar: "\u{F0013}"       // md-account_outline
     readonly property string glyphDown: "\u{F01DA}"         // md-download
     readonly property string glyphUp: "\u{F0552}"           // md-upload
@@ -75,12 +75,13 @@ QtObject {
     readonly property int cardChrome: 2 * cardPad + cardTitleHeight + titleGap
 
     readonly property int sidebarWidth: 200
-    readonly property int tabHeight: 26
+    readonly property int tabHeight: 40
     readonly property int sidebarRowPadX: 2 * gap
     // Tab glyphs: bigger than the card ones, in a fixed-width cell so the
     // labels line up whatever each glyph's own width.
-    readonly property int sidebarGlyphSize: 18
-    readonly property int sidebarGlyphWidth: 20
+    readonly property int sidebarGlyphSize: 22
+    readonly property int sidebarGlyphWidth: 26
+    readonly property int sidebarLabelSize: fontSizeMedium
     readonly property int ruleGap: 14
 
     // Three equal columns of cards beside the sidebar.

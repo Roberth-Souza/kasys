@@ -6,14 +6,14 @@ import "."
 Card {
     id: root
 
-    property int activeTab: 1
+    property int activeTab: 0
 
     readonly property var tabs: [
-        { "name": "System", "glyph": Config.glyphSystem },
         { "name": "Overview", "glyph": Config.glyphOverview },
         { "name": "Processes", "glyph": Config.glyphProcesses },
         { "name": "Hardware", "glyph": Config.glyphHardware },
-        { "name": "Storage", "glyph": Config.glyphDisk }
+        { "name": "Storage", "glyph": Config.glyphDisk },
+        { "name": "System", "glyph": Config.glyphSystem }
     ]
 
     function move(delta) {
@@ -93,7 +93,7 @@ Card {
                     anchors.left: parent.left
                     anchors.leftMargin: Config.sidebarRowPadX
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: Config.gap
+                    spacing: Config.sectionGap
 
                     Label {
                         anchors.verticalCenter: parent.verticalCenter
@@ -108,6 +108,7 @@ Card {
                         anchors.verticalCenter: parent.verticalCenter
                         text: modelData.name
                         color: active ? Config.fgInvert : Config.fg
+                        font.pixelSize: Config.sidebarLabelSize
                     }
                 }
 
