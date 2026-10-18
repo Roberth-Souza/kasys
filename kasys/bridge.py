@@ -142,8 +142,8 @@ class Monitor(QObject):
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
-        self._cpu_sample = cpu.CpuSample()
-        self._net_sample = network.NetSample()
+        self._cpu_sample: cpu.CpuSample | None = _read("cpu usage", cpu.CpuSample, None)
+        self._net_sample: network.NetSample | None = _read("network", network.NetSample, None)
         self._disk_sample: disk.DiskSample | None = _read("disk activity", disk.DiskSample, None)
         self._process_sample: processes.ProcessSample | None = _read("processes", processes.ProcessSample, None)
 
@@ -221,9 +221,11 @@ class Monitor(QObject):
 
     @Slot()
     def _sample(self) -> None:
-        self._cpu_usage = _read("cpu usage", self._cpu_sample.get_cpu_usage, 0.0)
+        if self._cpu_sample is not None:
+            self._cpu_usage = _read("cpu usage", self._cpu_sample.get_cpu_usage, 0.0)
         self._cpu_freq = _read("cpu frequency", cpu.get_cpu_freq, MISSING)
-        self._net = _read("network", self._net_sample.get_net_speed, network.NetSpeed(0.0, 0.0))
+        if self._net_sample is not None:
+            self._net = _read("network", self._net_sample.get_net_speed, network.NetSpeed(0.0, 0.0))
         self._read_levels()
         self._sample_disk_activity()
         self._sample_processes()
