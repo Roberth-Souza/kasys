@@ -104,7 +104,7 @@ Card {
                 anchors.top: usageGraph.bottom
                 height: Config.gpuSpanHeight
                 verticalAlignment: Text.AlignBottom
-                text: Config.historyLength + "s"
+                text: monitor.gpuHistory.length + "s"
                 color: Config.fgDim
                 font.pixelSize: Config.fontSizeSmall
             }
