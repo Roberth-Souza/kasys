@@ -150,7 +150,7 @@ kasys was built and tested on **one machine** (CachyOS, Hyprland, Ryzen 5
 
 **General**
 - Linux and Wayland only, on a compositor with wlr-layer-shell. No X11, no GNOME.
-- Only the **Overview** page exists. Processes, Hardware, Storage and System are placeholders.
+- Only the **Overview** page exists. Processes, Hardware and System are placeholders.
 
 **GPU**
 - **AMD only** (`amdgpu` driver). NVIDIA and Intel GPUs show nothing.
@@ -179,6 +179,5 @@ The sidebar already has the other pages; only the Overview is built.
 
 - [x] **Overview** — everything at a glance, on one screen
 - [ ] **Processes** — the full process list, sortable by any column
-- [ ] **Hardware** — CPU, GPU and sensors in detail
-- [ ] **Storage** — every disk and partition, not only the largest one
+- [ ] **Hardware** — CPU, GPU, disks, motherboard and sensors in detail
 - [ ] **System** — OS, session and the rest of the setup info
