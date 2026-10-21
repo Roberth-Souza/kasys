@@ -61,6 +61,14 @@ QtObject {
     readonly property string glyphDown: "\u{F01DA}"         // md-download
     readonly property string glyphUp: "\u{F0552}"           // md-upload
     readonly property string glyphChevronDown: "\u{F0140}"  // md-chevron_down
+    // System page cards.
+    readonly property string glyphUptime: "\u{F0150}"       // md-clock_outline
+    readonly property string glyphBootTime: "\u{F0425}"     // md-power
+    readonly property string glyphOsAge: "\u{F00ED}"        // md-calendar
+    readonly property string glyphBoot: "\u{F0128}"         // md-chart_bar
+    readonly property string glyphHost: "\u{F048B}"         // md-server
+    readonly property string glyphServices: "\u{F08BB}"     // md-cog_outline
+    readonly property string glyphSession: "\u{F0379}"      // md-monitor
 
     // -- geometry ------------------------------------------------------------
     readonly property int pad: 12           // window edge, same as the gap between cards
@@ -124,6 +132,21 @@ QtObject {
     readonly property int processHeaderGap: 6    // column labels to the first row
 
     readonly property int temperatureRowHeight: 26
+
+    // System page: title block, UPTIME | BOOT TIME | OS AGE, then two rows of
+    // a wide card (two columns) beside a narrow one. The middle row takes
+    // whatever height the rest leaves.
+    readonly property int wideColumnWidth: 2 * columnWidth + blockGap
+    readonly property int pageTitleHeight: 34
+    readonly property int pageSubtitleHeight: 18
+    readonly property int pageHeaderHeight: pageTitleHeight + pageSubtitleHeight
+    readonly property int bigValueHeight: 48     // one line at fontSizeHuge
+    readonly property int statDetailHeight: 18
+    readonly property int statCardHeight: cardChrome + bigValueHeight + statGap + statDetailHeight
+    readonly property int infoRowHeight: 26
+    readonly property int hostRowHeight: 30      // a bit looser: Host information has room
+    readonly property int sessionRows: 5
+    readonly property int sessionCardHeight: cardChrome + sessionRows * infoRowHeight
 
     // System card: the avatar takes whatever height the text leaves.
     readonly property int avatarGlyphSize: 64

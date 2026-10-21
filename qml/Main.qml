@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Window
 import org.kde.layershell as LayerShell
 import "."
+import "system"
 
 // The window: a wlr-layer-shell overlay over the whole screen, transparent
 // except for the fixed canvas centred in it. Same model as gitframe: open,
@@ -108,9 +109,14 @@ Window {
                     visible: sidebar.activeTab === 0
                 }
 
+                SystemPage {
+                    anchors.fill: parent
+                    visible: sidebar.activeTab === 3
+                }
+
                 PlaceholderPage {
                     anchors.fill: parent
-                    visible: sidebar.activeTab !== 0
+                    visible: sidebar.activeTab !== 0 && sidebar.activeTab !== 3
                     name: sidebar.tabs[sidebar.activeTab].name
                     pageGlyph: sidebar.tabs[sidebar.activeTab].glyph
                 }

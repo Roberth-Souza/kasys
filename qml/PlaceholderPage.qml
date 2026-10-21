@@ -11,7 +11,7 @@ Card {
 
     Label {
         anchors.centerIn: parent
-        text: "Not built yet"
+        text: Format.notBuilt
         color: Config.fgDim
     }
 }

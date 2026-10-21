@@ -19,6 +19,7 @@ from datetime import datetime
 from statistics import fmean
 
 from PySide6.QtCore import Property, QCoreApplication, QObject, QTimer, QUrl, Signal, Slot
+from PySide6.QtGui import QGuiApplication
 
 from kasys.collectors import avatar, cpu, disk, gpu, mem, network, processes, sensors
 from kasys.collectors import sys as sysinfo
@@ -176,6 +177,9 @@ class Monitor(QObject):
 
         # Model and core counts never change while running: read once.
         self._cpu_info: cpu.CpuInfo | None = _read("cpu info", cpu.get_cpu_info, None)
+
+        # Kernel, boot mode and package count: read once, like the CPU model.
+        self._host: sysinfo.HostInfo | None = _read("host info", sysinfo.get_host_info, None)
 
         # The card is found once: a GPU is never hot-plugged.
         self._gpu_dir: str | None = _read("gpu", gpu.find_gpu_dir, None)
@@ -465,13 +469,59 @@ class Monitor(QObject):
         today = datetime.now().astimezone().date()
         return (today - self._install_date.astimezone().date()).days
 
+    def _get_install_date(self) -> float:
+        # Milliseconds since the epoch: what a JS Date takes.
+        return self._install_date.timestamp() * 1000 if self._install_date else MISSING
+
     hostname = Property(str, _get_hostname, notify=systemInfoChanged)
     osName = Property(str, _get_os_name, notify=systemInfoChanged)
     shellName = Property(str, _get_shell_name, notify=systemInfoChanged)
     # Seconds.
     uptime = Property(float, _get_uptime, notify=systemInfoChanged)
+    # First line of pacman.log, in ms since the epoch; MISSING if unreadable.
+    installDate = Property(float, _get_install_date, notify=systemInfoChanged)
     # Days since install; notified every tick so it turns over at midnight.
     osAgeDays = Property(int, _get_os_age_days, notify=tick)
+
+    # -- host info (read once at startup) -------------------------------------
+    def _get_kernel(self) -> str:
+        return self._host.kernel if self._host else ""
+
+    def _get_architecture(self) -> str:
+        return self._host.arch if self._host else ""
+
+    def _get_uefi(self) -> int:
+        return int(self._host.uefi) if self._host else MISSING
+
+    def _get_secure_boot(self) -> int:
+        host = self._host
+        return int(host.secure_boot) if host and host.secure_boot is not None else MISSING
+
+    def _get_bootloader(self) -> str:
+        host = self._host
+        return host.boot_loader if host and host.boot_loader is not None else ""
+
+    def _get_packages(self) -> int:
+        host = self._host
+        return host.packages if host and host.packages is not None else MISSING
+
+    # "" / MISSING when the field is unknown.
+    kernel = Property(str, _get_kernel, constant=True)
+    architecture = Property(str, _get_architecture, constant=True)
+    # Flags as 1 / 0, or MISSING: a QML bool has no "unknown".
+    uefi = Property(int, _get_uefi, constant=True)
+    secureBoot = Property(int, _get_secure_boot, constant=True)
+    bootloader = Property(str, _get_bootloader, constant=True)
+    # Installed pacman packages.
+    packages = Property(int, _get_packages, constant=True)
+
+    @Slot(str, result=float)
+    def refreshRate(self, screen_name: str) -> float:
+        """Hz of the named screen: QML's Screen knows the name but not the rate."""
+        for screen in QGuiApplication.screens():
+            if screen.name() == screen_name:
+                return screen.refreshRate()
+        return MISSING
 
     def _get_avatar_url(self) -> str:
         return self._avatar_url

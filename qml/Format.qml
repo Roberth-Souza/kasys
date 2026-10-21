@@ -6,6 +6,10 @@ import QtQuick
 // a negative one means its collector failed and is drawn as `missing`.
 QtObject {
     readonly property string missing: "--"
+    // What a card or row without a collector yet shows instead of a value.
+    readonly property string notBuilt: "Not built yet"
+    // Dates follow the English labels, whatever the system locale.
+    readonly property var dateLocale: Qt.locale("en_US")
     readonly property var byteUnits: ["B", "KiB", "MiB", "GiB", "TiB"]
 
     // 1 decimal under 100, none above; a trailing ".0" is dropped.
@@ -71,6 +75,24 @@ QtObject {
     function days(n) { return n < 0 ? missing : n + (n === 1 ? " day" : " days"); }
 
     function text(s) { return s === "" ? missing : s; }
+
+    // A flag from the bridge: 1, 0, or negative when unknown.
+    function flag(v, yes, no) { return v < 0 ? missing : (v ? yes : no); }
+
+    function hz(v) { return v < 0 ? missing : Math.round(v) + " Hz"; }
+
+    // "Apr 23, 2026" from milliseconds since the epoch.
+    function date(ms) { return ms < 0 ? missing : new Date(ms).toLocaleString(dateLocale, "MMM d, yyyy"); }
+
+    // When the machine came up, from the uptime: "07:42" if today,
+    // "Oct 18, 07:42" before that.
+    function bootClock(uptimeSeconds) {
+        if (uptimeSeconds < 0)
+            return missing;
+        const boot = new Date(Date.now() - uptimeSeconds * 1000);
+        const today = new Date().toDateString() === boot.toDateString();
+        return boot.toLocaleString(dateLocale, today ? "HH:mm" : "MMM d, HH:mm");
+    }
 
     // A round axis top for an auto-scaled graph: 1, 2 or 5 times a power of
     // ten, in B, KiB, MiB or GiB. Never below 1 KiB, so an idle link is flat.
