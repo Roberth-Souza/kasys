@@ -28,11 +28,30 @@ class HostInfo:
 
 
 @dataclass(frozen=True)
+class SessionInfo:
+    desktop: str | None
+    display_server: str | None
+
+
+@dataclass(frozen=True)
 class SysInfo:
     hostname: str
     os_name: str
     uptime: float
     shell_name: str
+
+
+def read_desktop() -> str | None:
+    return os.environ.get("XDG_CURRENT_DESKTOP")
+
+
+def read_display_server() -> str | None:
+    wayland_socket = os.environ.get("WAYLAND_DISPLAY")
+    if wayland_socket is None:
+        if os.environ.get("DISPLAY") is None:
+            return None
+        return "x11"
+    return "wayland"
 
 
 def read_uname_release() -> str:
@@ -180,6 +199,12 @@ def read_shell_name() -> str:
     return os.path.basename(user_passwd.pw_shell)
 
 
+def get_session_info() -> SessionInfo:
+    desktop = read_desktop()
+    display_server = read_display_server()
+    return SessionInfo(desktop, display_server)
+
+
 def get_sys_info() -> SysInfo:
     hostname = read_hostname_proc()
     unparsed_os_name = read_os_name()
@@ -208,6 +233,7 @@ def get_install_date() -> datetime:
 
 
 if __name__ == "__main__":
+    print(get_session_info())
     print(get_sys_info())
     print(get_host_info())
     print(get_install_date())
