@@ -180,6 +180,8 @@ class Monitor(QObject):
 
         # Kernel, boot mode and package count: read once, like the CPU model.
         self._host: sysinfo.HostInfo | None = _read("host info", sysinfo.get_host_info, None)
+        # The desktop session outlives the app: read once.
+        self._session: sysinfo.SessionInfo | None = _read("session info", sysinfo.get_session_info, None)
 
         # The card is found once: a GPU is never hot-plugged.
         self._gpu_dir: str | None = _read("gpu", gpu.find_gpu_dir, None)
@@ -514,6 +516,19 @@ class Monitor(QObject):
     bootloader = Property(str, _get_bootloader, constant=True)
     # Installed pacman packages.
     packages = Property(int, _get_packages, constant=True)
+
+    # -- session info (read once at startup) ----------------------------------
+    def _get_desktop(self) -> str:
+        session = self._session
+        return session.desktop if session and session.desktop is not None else ""
+
+    def _get_display_server(self) -> str:
+        session = self._session
+        return session.display_server if session and session.display_server is not None else ""
+
+    # "" when unknown; display server is raw ("wayland" / "x11"), QML formats.
+    desktop = Property(str, _get_desktop, constant=True)
+    displayServer = Property(str, _get_display_server, constant=True)
 
     @Slot(str, result=float)
     def refreshRate(self, screen_name: str) -> float:

@@ -76,6 +76,15 @@ QtObject {
 
     function text(s) { return s === "" ? missing : s; }
 
+    // Raw collector value ("wayland" / "x11") to its display name.
+    function displayServer(s) {
+        if (s === "wayland")
+            return "Wayland";
+        if (s === "x11")
+            return "X11";
+        return text(s);
+    }
+
     // A flag from the bridge: 1, 0, or negative when unknown.
     function flag(v, yes, no) { return v < 0 ? missing : (v ? yes : no); }
 

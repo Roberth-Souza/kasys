@@ -3,8 +3,7 @@ import QtQuick.Window
 import ".."
 
 // Desktop, display and shell. Resolution comes from QML's Screen (scaled
-// back to device pixels), the refresh rate from the bridge; Desktop and
-// Display server wait for a collector.
+// back to device pixels), the refresh rate from the bridge.
 Card {
     title: "Desktop & session"
     glyph: Config.glyphSession
@@ -16,13 +15,13 @@ Card {
         InfoRow {
             width: parent.width
             label: "Desktop"
-            pending: true
+            value: Format.text(monitor.desktop)
         }
 
         InfoRow {
             width: parent.width
             label: "Display server"
-            pending: true
+            value: Format.displayServer(monitor.displayServer)
         }
 
         InfoRow {
