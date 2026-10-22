@@ -33,6 +33,8 @@ TOP_PROCESSES = 12
 TOP_CPU_PROCESSES = 3
 # What a property reads when its source failed; QML draws it as "--".
 MISSING = -1
+# How often to ask systemd again while the boot is still running.
+BOOT_RETRY_MS = 5000
 
 # Chips the Temperatures card knows, in the order it lists them: display
 # name, glyph kind for QML, and the one sensor shown. Any other chip shows up
@@ -140,6 +142,7 @@ class Monitor(QObject):
 
     tick = Signal()
     systemInfoChanged = Signal()
+    bootInfoChanged = Signal()
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -183,6 +186,15 @@ class Monitor(QObject):
         # The desktop session outlives the app: read once.
         self._session: sysinfo.SessionInfo | None = _read("session info", sysinfo.get_session_info, None)
 
+        # The boot times are fixed once systemd is done booting. Started early
+        # (autostart), it is not done yet: ask again until it is.
+        self._boot: sysinfo.BootInfo | None = None
+        self._boot_timer = QTimer(self)
+        self._boot_timer.setInterval(BOOT_RETRY_MS)
+        self._boot_timer.timeout.connect(self._read_boot_info)
+        if not self._read_boot_info():
+            self._boot_timer.start()
+
         # The card is found once: a GPU is never hot-plugged.
         self._gpu_dir: str | None = _read("gpu", gpu.find_gpu_dir, None)
         self._gpu_hwmon: str | None = None
@@ -212,6 +224,18 @@ class Monitor(QObject):
         self._sys = _read("system info", sysinfo.get_sys_info, None)
         self._install_date = _read("install date", sysinfo.get_install_date, None)
         self.systemInfoChanged.emit()
+
+    @Slot(result=bool)
+    def _read_boot_info(self) -> bool:
+        """Read the boot times; False while systemd is still booting."""
+        try:
+            self._boot = _read("boot info", sysinfo.get_boot_info, None)
+        except sysinfo.BootNotFinishedError:
+            return False
+        # Read, or failed for good: either way there is nothing to retry.
+        self._boot_timer.stop()
+        self.bootInfoChanged.emit()
+        return True
 
     def _read_levels(self) -> None:
         self._mem = _read("memory", mem.get_mem_info, self._mem)
@@ -529,6 +553,20 @@ class Monitor(QObject):
     # "" when unknown; display server is raw ("wayland" / "x11"), QML formats.
     desktop = Property(str, _get_desktop, constant=True)
     displayServer = Property(str, _get_display_server, constant=True)
+
+    # -- boot info (read once systemd has finished booting) --------------------
+    def _get_boot_total(self) -> float:
+        return self._boot.total if self._boot else MISSING
+
+    def _get_boot_phases(self) -> list[dict[str, object]]:
+        if self._boot is None:
+            return []
+        return [{"name": name, "seconds": seconds} for name, seconds in self._boot.phases.items()]
+
+    # Seconds from the first phase to startup finished, or MISSING.
+    bootTotal = Property(float, _get_boot_total, notify=bootInfoChanged)
+    # One dict per phase in systemd's order: name (raw, "firmware") and seconds.
+    bootPhases = Property(list, _get_boot_phases, notify=bootInfoChanged)
 
     @Slot(str, result=float)
     def refreshRate(self, screen_name: str) -> float:

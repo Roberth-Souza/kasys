@@ -63,10 +63,21 @@ QtObject {
     readonly property string glyphChevronDown: "\u{F0140}"  // md-chevron_down
     // System page cards.
     readonly property string glyphUptime: "\u{F0150}"       // md-clock_outline
-    readonly property string glyphBootTime: "\u{F0425}"     // md-power
+    readonly property string glyphLastUpdate: "\u{F06B0}"   // md-update
     readonly property string glyphOsAge: "\u{F00ED}"        // md-calendar
-    readonly property string glyphBoot: "\u{F0128}"         // md-chart_bar
     readonly property string glyphHost: "\u{F048B}"         // md-server
+    readonly property string glyphRecentBoots: "\u{F02DA}"  // md-history
+    readonly property string glyphLongest: "\u{F053A}"      // md-trophy_outline
+    // Boot phases by systemd-analyze's name; any other one (`soft reboot #1`)
+    // gets glyphPhaseOther.
+    readonly property var glyphPhases: ({
+        "firmware": "\u{F4BC}",   // oct-cpu
+        "loader": "\u{F09ED}",    // md-text_box_outline
+        "kernel": "\u{F08BB}",    // md-cog_outline
+        "initrd": "\u{F01A7}",    // md-cube_outline
+        "userspace": "\u{F489}"   // oct-terminal
+    })
+    readonly property string glyphPhaseOther: "\u{F051B}"   // md-timer_outline
     readonly property string glyphServices: "\u{F08BB}"     // md-cog_outline
     readonly property string glyphSession: "\u{F0379}"      // md-monitor
 
@@ -133,20 +144,45 @@ QtObject {
 
     readonly property int temperatureRowHeight: 26
 
-    // System page: title block, UPTIME | BOOT TIME | OS AGE, then two rows of
-    // a wide card (two columns) beside a narrow one. The middle row takes
-    // whatever height the rest leaves.
-    readonly property int wideColumnWidth: 2 * columnWidth + blockGap
-    readonly property int pageTitleHeight: 34
-    readonly property int pageSubtitleHeight: 18
-    readonly property int pageHeaderHeight: pageTitleHeight + pageSubtitleHeight
+    // System page, top to bottom: UPTIME | OS AGE | LAST UPDATE, Boot
+    // analysis across the page, Recent boots | Startup services (taking
+    // whatever height is left), then Host information | Desktop & session.
+    readonly property int pageWidth: 3 * columnWidth + 2 * blockGap
+    readonly property int halfWidth: (pageWidth - blockGap) / 2
     readonly property int bigValueHeight: 48     // one line at fontSizeHuge
     readonly property int statDetailHeight: 18
     readonly property int statCardHeight: cardChrome + bigValueHeight + statGap + statDetailHeight
-    readonly property int infoRowHeight: 26
-    readonly property int hostRowHeight: 30      // a bit looser: Host information has room
-    readonly property int sessionRows: 5
-    readonly property int sessionCardHeight: cardChrome + sessionRows * infoRowHeight
+    // Host information and Desktop & session: two label / value columns.
+    readonly property int pairRowHeight: 22
+    readonly property int pairLabelWidth: 120
+    readonly property int pairRows: 4            // Host information's left column, the longest
+    readonly property int pairCardHeight: cardChrome + pairRows * pairRowHeight
+
+    // Boot analysis (no heading): total on the left, one column per phase
+    // beside it with the phase bar under them, then the longest phase.
+    // Phases are shaded dark to light in systemd's order (firmware first);
+    // a sixth phase would reuse the first shade.
+    readonly property var bootPhaseColors: ["#4a4a4a", "#6e6e6e", "#8c8c8c", "#adadad", "#d4d4d4"]
+    readonly property int bootTotalWidth: 260
+    readonly property int bootColumnPad: 12     // divider to the text of a phase column
+    readonly property int bootPhaseIconSize: 22
+    readonly property int bootPhaseIconHeight: 26
+    readonly property int bootPhaseNameHeight: 18
+    readonly property int bootPhaseValueSize: 22
+    readonly property int bootPhaseValueHeight: 30
+    readonly property int bootPhasePercentHeight: 16
+    readonly property int bootPhasesHeight: bootPhaseIconHeight + bootPhaseNameHeight
+                                            + bootPhaseValueHeight + bootPhasePercentHeight + 3 * statGap
+    readonly property int bootBarHeight: 22
+    readonly property int bootBarGap: 30        // phase columns to the bar
+    readonly property int bootSegmentGap: 2     // black seam between two phases
+    readonly property int bootAxisHeight: 16
+    readonly property int bootLongestHeight: 22
+    readonly property int bootLongestRuleHeight: 14
+    readonly property int bootStartupHeight: bootPhasesHeight + bootBarGap + bootBarHeight
+                                             + statGap + bootAxisHeight
+    readonly property int bootCardHeight: 2 * cardPad + bootStartupHeight + 2 * ruleGap + 1
+                                          + bootLongestHeight
 
     // System card: the avatar takes whatever height the text leaves.
     readonly property int avatarGlyphSize: 64

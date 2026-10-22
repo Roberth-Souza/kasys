@@ -88,6 +88,15 @@ QtObject {
     // A flag from the bridge: 1, 0, or negative when unknown.
     function flag(v, yes, no) { return v < 0 ? missing : (v ? yes : no); }
 
+    // A boot time: "650 ms" under a second, "2.10 s" above.
+    function seconds(v) {
+        if (v < 0)
+            return missing;
+        return v < 1 ? Math.round(v * 1000) + " ms" : v.toFixed(2) + " s";
+    }
+
+    function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
     function hz(v) { return v < 0 ? missing : Math.round(v) + " Hz"; }
 
     // "Apr 23, 2026" from milliseconds since the epoch.
