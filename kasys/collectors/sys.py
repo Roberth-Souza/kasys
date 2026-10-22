@@ -2,6 +2,8 @@
 
 import os
 import pwd
+import string
+import subprocess
 import warnings
 from dataclasses import dataclass
 from datetime import datetime
@@ -15,6 +17,7 @@ AFTER_ATRIBUTE_BYTES = slice(4, None)
 PROC_HOSTNAME = "/proc/sys/kernel/hostname"
 PROC_UPTIME = "/proc/uptime"
 PACMAN_LOG = "/var/log/pacman.log"
+UNIT_SECONDS = {"us": 1e-6, "ms": 1e-3, "s": 1, "min": 60, "h": 3600}
 
 
 @dataclass(frozen=True)
@@ -39,6 +42,48 @@ class SysInfo:
     os_name: str
     uptime: float
     shell_name: str
+
+
+@dataclass(frozen=True)
+class BootInfo:
+    phases: dict[str, float]
+    total: float
+
+
+class BootNotFinishedError(Exception):
+    """systemd has not finished booting yet; try again later"""
+
+
+def read_systemd_analyze() -> subprocess.CompletedProcess[str]:
+    env = {**os.environ, "LC_ALL": "C"}
+    return subprocess.run("systemd-analyze", capture_output=True, check=False, text=True, env=env)
+
+
+def parse_timespan(text: str) -> float:
+    total = 0.0
+    for token in text.split():  # "1min 4.615s" -> ["1min", "4.615s"]
+        number = token.rstrip(string.ascii_lowercase)  # "4.615s" -> "4.615"
+        unit = token[len(number) :]  # "4.615s" -> "s"
+        if unit not in UNIT_SECONDS:
+            raise ValueError(f"unknown time unit in {token!r}")
+        total += float(number) * UNIT_SECONDS[unit]
+    return total
+
+
+def parse_systemd_analyze(raw_systemd: str) -> BootInfo:
+    phases: dict[str, float] = {}
+    first_line = raw_systemd.splitlines()[0]
+    phases_text, total_text = first_line.removeprefix("Startup finished in").strip().split(" = ")
+    total = parse_timespan(total_text.strip())
+    split_phases = phases_text.split("+")
+    for phase in split_phases:
+        start = phase.find("(")
+        end = phase.rfind(")")
+        phase_name = phase[start + 1 : end]
+
+        phases[phase_name] = parse_timespan(phase[0:start].strip())
+
+    return BootInfo(phases, total)
 
 
 def read_desktop() -> str | None:
@@ -199,6 +244,29 @@ def read_shell_name() -> str:
     return os.path.basename(user_passwd.pw_shell)
 
 
+def get_boot_info() -> BootInfo | None:
+    try:
+        result = read_systemd_analyze()
+    except OSError as error:
+        warnings.warn(f"could not run systemd-analyze: {error}")
+        return None
+    stdout = result.stdout
+    if result.returncode != 0:
+        if "not yet finished" in result.stderr:
+            raise BootNotFinishedError("systemd has not finished booting yet; try again later")
+        else:
+            warnings.warn(f"{result.stderr}")
+            return None
+
+    try:
+        boot_info = parse_systemd_analyze(stdout)
+    except (ValueError, IndexError) as error:
+        warnings.warn(f"received {error} while trying to parse systemd.stdout")
+        return None
+
+    return boot_info
+
+
 def get_session_info() -> SessionInfo:
     desktop = read_desktop()
     display_server = read_display_server()
@@ -237,3 +305,4 @@ if __name__ == "__main__":
     print(get_sys_info())
     print(get_host_info())
     print(get_install_date())
+    print(get_boot_info())
