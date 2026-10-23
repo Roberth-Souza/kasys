@@ -52,11 +52,9 @@ Column {
     Row {
         spacing: Config.blockGap
 
-        PendingCard {
+        RecentBootsCard {
             width: Config.halfWidth
             height: root.middleHeight
-            title: "Recent boots"
-            glyph: Config.glyphRecentBoots
         }
 
         PendingCard {

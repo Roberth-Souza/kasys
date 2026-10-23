@@ -184,6 +184,15 @@ QtObject {
     readonly property int bootCardHeight: 2 * cardPad + bootStartupHeight + 2 * ruleGap + 1
                                           + bootLongestHeight
 
+    // Recent boots: total of each startup, the newest labelled on the right.
+    readonly property var bootsScaleSteps: [5, 10, 20, 30, 40, 60, 90, 120]
+    readonly property int bootsAxisWidth: 40      // "120 s"
+    readonly property int bootsValueWidth: 80     // newest dot + "21.25 s"
+    readonly property real bootsDotRadius: 2.5
+    readonly property real bootsLastDotRadius: 4
+    readonly property real bootsLastDotStroke: 1.5
+    readonly property int bootsValuePad: 2        // black margin around the hovered time
+
     // System card: the avatar takes whatever height the text leaves.
     readonly property int avatarGlyphSize: 64
     readonly property int statGap: 4        // small label to its big value

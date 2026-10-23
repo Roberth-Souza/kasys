@@ -177,6 +177,7 @@ class Monitor(QObject):
         self._sys: sysinfo.SysInfo | None = None
         self._install_date: datetime | None = None
         self._last_update: datetime | None = None
+        self._recent_boots: list[float] = []
         self.read_system_info()
 
         # Model and core counts never change while running: read once.
@@ -225,6 +226,9 @@ class Monitor(QObject):
         self._sys = _read("system info", sysinfo.get_sys_info, None)
         self._install_date = _read("install date", sysinfo.get_install_date, None)
         self._last_update = _read("last update", sysinfo.get_last_update, None)
+        # The journal only gains this boot once systemd is done: an opening
+        # after that picks it up.
+        self._recent_boots = _read("recent boots", sysinfo.get_recent_boots, None) or []
         self.systemInfoChanged.emit()
 
     @Slot(result=bool)
@@ -522,6 +526,12 @@ class Monitor(QObject):
     lastUpdate = Property(float, _get_last_update, notify=systemInfoChanged)
     # Seconds since the last update; notified every tick so "3h ago" moves.
     lastUpdateAge = Property(float, _get_last_update_age, notify=tick)
+
+    def _get_recent_boots(self) -> list[float]:
+        return list(self._recent_boots)
+
+    # Total seconds of the last startups, oldest first; [] when unknown.
+    recentBoots = Property(list, _get_recent_boots, notify=systemInfoChanged)
 
     # -- host info (read once at startup) -------------------------------------
     def _get_kernel(self) -> str:
