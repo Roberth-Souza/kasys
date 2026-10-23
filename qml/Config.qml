@@ -187,11 +187,12 @@ QtObject {
     // Recent boots: total of each startup, the newest labelled on the right.
     readonly property var bootsScaleSteps: [5, 10, 20, 30, 40, 60, 90, 120]
     readonly property int bootsAxisWidth: 40      // "120 s"
-    readonly property int bootsValueWidth: 80     // newest dot + "21.25 s"
+    readonly property int bootsXAxisHeight: 18    // boot numbers under the plot
+    readonly property var bootsGridDash: [2, 3]
     readonly property real bootsDotRadius: 2.5
     readonly property real bootsLastDotRadius: 4
     readonly property real bootsLastDotStroke: 1.5
-    readonly property int bootsValuePad: 2        // black margin around the hovered time
+    readonly property int bootsValuePad: 2        // black margin around a time label
 
     // System card: the avatar takes whatever height the text leaves.
     readonly property int avatarGlyphSize: 64

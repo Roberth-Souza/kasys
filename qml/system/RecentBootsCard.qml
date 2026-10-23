@@ -2,17 +2,18 @@ import QtQuick
 import ".."
 
 // Total time of the last startups (monitor.recentBoots, oldest first): one
-// point per boot, the newest hollow with its time beside it. Hovering snaps a
-// line to the nearest boot and shows that one instead. A boot that never
-// finished has no journal entry, so it is just not on the line.
+// point per boot, from the left axis to the right edge, the newest hollow with
+// its time always above it. Hovering snaps a line to the nearest boot and
+// shows its time below it. A boot that
+// never finished has no journal entry, so it is just not on the line.
 Card {
     id: root
 
     readonly property var boots: monitor.recentBoots
     readonly property real scaleMax: niceTop(boots.reduce((top, v) => Math.max(top, v), 0))
-    // Boot under the mouse, or -1; the labelled point falls back to the newest.
+    readonly property int newest: boots.length - 1
+    // Boot under the mouse, or -1.
     property int hovered: -1
-    readonly property int focused: hovered >= 0 ? hovered : boots.length - 1
 
     // A round axis top in seconds, so the labels stay whole numbers.
     function niceTop(peak) {
@@ -53,16 +54,35 @@ Card {
         visible: root.boots.length > 0
         anchors.fill: parent
 
-        // Axis: top, middle and bottom of the scale.
+        // Y axis: top, middle and bottom of the scale.
         Repeater {
             model: 3
 
             Label {
                 required property int index
 
+                readonly property real value: root.scaleMax * (1 - index / 2)
+
                 width: Config.bootsAxisWidth
-                y: Math.round(index * (chart.height - height) / 2)
-                text: Math.round(root.scaleMax * (1 - index / 2)) + " s"
+                // Centred on its grid line, kept inside the card.
+                y: Math.max(0, Math.min(plot.height - height,
+                                        Math.round(plot.yAt(value) - height / 2)))
+                text: Math.round(value) + " s"
+                color: Config.fgDim
+                font.pixelSize: Config.fontSizeSmall
+            }
+        }
+
+        // X axis: boot number under each point, 1 = oldest.
+        Repeater {
+            model: root.boots.length
+
+            Label {
+                required property int index
+
+                x: Math.round(plot.x + plot.xAt(index) - width / 2)
+                y: chart.height - height
+                text: index + 1
                 color: Config.fgDim
                 font.pixelSize: Config.fontSizeSmall
             }
@@ -71,14 +91,20 @@ Card {
         Canvas {
             id: plot
 
+            // Room for a dot on the edges; the grid box is exactly the
+            // points' span, so the first boot sits on the axis.
             readonly property real inset: Config.bootsLastDotRadius + 1
+            readonly property real leftX: Math.round(inset) + 0.5
+            readonly property real rightX: Math.round(width - inset) + 0.5
+            readonly property real topY: yAt(root.scaleMax)
+            readonly property real bottomY: yAt(0)
 
             anchors.left: parent.left
             anchors.leftMargin: Config.bootsAxisWidth + Config.gap
             anchors.right: parent.right
-            anchors.rightMargin: Config.bootsValueWidth
             anchors.top: parent.top
             anchors.bottom: parent.bottom
+            anchors.bottomMargin: Config.bootsXAxisHeight
 
             onWidthChanged: requestPaint()
             onHeightChanged: requestPaint()
@@ -87,7 +113,7 @@ Card {
             function xAt(i) {
                 const count = root.boots.length;
                 if (count < 2)
-                    return width - inset;
+                    return rightX;
                 return Math.round(inset + i * (width - 2 * inset) / (count - 1)) + 0.5;
             }
 
@@ -110,26 +136,32 @@ Card {
                 ctx.reset();
                 ctx.lineWidth = 1;
 
-                // Faint vertical line under each boot.
-                ctx.strokeStyle = String(Config.gridLineFaint);
-                ctx.beginPath();
-                for (let i = 0; i < root.boots.length; i++) {
-                    ctx.moveTo(xAt(i), 0);
-                    ctx.lineTo(xAt(i), height);
-                }
-                ctx.stroke();
-
-                // Horizontal grid at the three axis labels.
-                ctx.strokeStyle = String(Config.gridLine);
-                ctx.beginPath();
-                for (let k = 0; k <= 2; k++) {
-                    const y = Math.round(k * (height - 1) / 2) + 0.5;
-                    ctx.moveTo(0, y);
-                    ctx.lineTo(width, y);
-                }
-                ctx.stroke();
-
                 const boots = root.boots;
+
+                // Dashed grid: a vertical line under each boot, horizontal
+                // ones at the top and middle labels.
+                ctx.strokeStyle = String(Config.gridLine);
+                ctx.setLineDash(Config.bootsGridDash);
+                ctx.beginPath();
+                for (let i = 0; i < boots.length; i++) {
+                    ctx.moveTo(xAt(i), topY);
+                    ctx.lineTo(xAt(i), bottomY);
+                }
+                for (let k = 0; k < 2; k++) {
+                    const y = yAt(root.scaleMax * (1 - k / 2));
+                    ctx.moveTo(leftX, y);
+                    ctx.lineTo(rightX, y);
+                }
+                ctx.stroke();
+
+                // Solid axes: left and bottom.
+                ctx.setLineDash([]);
+                ctx.beginPath();
+                ctx.moveTo(leftX, topY);
+                ctx.lineTo(leftX, bottomY);
+                ctx.lineTo(rightX, bottomY);
+                ctx.stroke();
+
                 if (boots.length === 0)
                     return;
 
@@ -137,8 +169,8 @@ Card {
                 if (root.hovered >= 0) {
                     ctx.strokeStyle = String(Config.fgDim);
                     ctx.beginPath();
-                    ctx.moveTo(xAt(root.hovered), 0);
-                    ctx.lineTo(xAt(root.hovered), height);
+                    ctx.moveTo(xAt(root.hovered), topY);
+                    ctx.lineTo(xAt(root.hovered), bottomY);
                     ctx.stroke();
                 }
 
@@ -152,52 +184,82 @@ Card {
                 }
                 ctx.stroke();
 
+                const labelled = i => i === root.newest || i === root.hovered;
+
                 ctx.fillStyle = String(Config.graphLine);
                 for (let i = 0; i < boots.length; i++) {
-                    if (i === root.focused)
+                    if (labelled(i))
                         continue;
                     ctx.beginPath();
                     ctx.arc(xAt(i), yAt(boots[i]), Config.bootsDotRadius, 0, 2 * Math.PI);
                     ctx.fill();
                 }
 
-                // The labelled boot: hollow, black inside so the line stops at its rim.
-                const f = root.focused;
-                ctx.beginPath();
-                ctx.arc(xAt(f), yAt(boots[f]), Config.bootsLastDotRadius, 0, 2 * Math.PI);
+                // Labelled boots: hollow, black inside so the line stops at the rim.
                 ctx.fillStyle = String(Config.menuBg);
-                ctx.fill();
                 ctx.strokeStyle = String(Config.fgActive);
                 ctx.lineWidth = Config.bootsLastDotStroke;
-                ctx.stroke();
+                for (let i = 0; i < boots.length; i++) {
+                    if (!labelled(i))
+                        continue;
+                    ctx.beginPath();
+                    ctx.arc(xAt(i), yAt(boots[i]), Config.bootsLastDotRadius, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.stroke();
+                }
             }
         }
 
-        // Black behind the text: over the plot it would cross the line.
-        Rectangle {
-            x: plot.x + plot.xAt(root.focused) + Config.bootsLastDotRadius + Config.gap
-            y: Math.round(plot.y + plot.yAt(root.boots[root.focused] ?? 0) - height / 2)
-            width: value.implicitWidth + 2 * Config.bootsValuePad
-            height: value.implicitHeight
-            color: Config.menuBg
+        // Newest time above its point, the hovered one below its own, so the
+        // two stay apart; each flips side when it would leave the plot.
+        ValueTag {
+            index: root.newest
+            above: true
+        }
 
-            Label {
-                id: value
-
-                x: Config.bootsValuePad
-                text: Format.seconds(root.boots[root.focused] ?? -1)
-                color: Config.fgActive
-            }
+        ValueTag {
+            index: root.hovered
+            above: false
+            visible: index >= 0 && index !== root.newest
         }
 
         MouseArea {
             x: plot.x
             width: plot.width
-            height: parent.height
+            height: plot.height
             hoverEnabled: true
 
             onPositionChanged: (mouse) => root.hovered = plot.nearest(mouse.x)
             onExited: root.hovered = -1
+        }
+    }
+
+    // Black behind the text: over the plot it would cross the line.
+    component ValueTag: Rectangle {
+        property int index: -1
+        property bool above: true
+
+        readonly property real dotY: plot.y + plot.yAt(root.boots[index] ?? 0)
+        readonly property real offset: Config.bootsLastDotRadius + Config.gap
+        readonly property real upY: dotY - offset - height
+        readonly property real downY: dotY + offset
+        readonly property bool fitsUp: upY >= plot.y
+        readonly property bool fitsDown: downY + height <= plot.y + plot.height
+
+        // Centred on its point, kept inside the plot.
+        x: Math.round(Math.max(plot.x, Math.min(plot.x + plot.width - width,
+                                                plot.x + plot.xAt(index) - width / 2)))
+        y: Math.round((above ? fitsUp || !fitsDown : !fitsDown && fitsUp) ? upY : downY)
+        width: tagText.implicitWidth + 2 * Config.bootsValuePad
+        height: tagText.implicitHeight
+        color: Config.menuBg
+
+        Label {
+            id: tagText
+
+            x: Config.bootsValuePad
+            text: Format.seconds(root.boots[parent.index] ?? -1)
+            color: Config.fgActive
         }
     }
 }
