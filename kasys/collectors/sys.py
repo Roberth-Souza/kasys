@@ -17,6 +17,9 @@ AFTER_ATRIBUTE_BYTES = slice(4, None)
 PROC_HOSTNAME = "/proc/sys/kernel/hostname"
 PROC_UPTIME = "/proc/uptime"
 PACMAN_LOG = "/var/log/pacman.log"
+SYSTEM_UPGRADE_LOG = "starting full system upgrade"
+TRANSACTION_COMPLETED_LOG = "transaction completed"
+PACMAN_RUNNING_LOG = "[PACMAN] Running"
 UNIT_SECONDS = {"us": 1e-6, "ms": 1e-3, "s": 1, "min": 60, "h": 3600}
 
 
@@ -191,6 +194,33 @@ def read_hostname_proc() -> str:
         return hostname_info.strip()
 
 
+def read_pacman_log() -> str:
+    with open(PACMAN_LOG, "r") as info:
+        return info.read()
+
+
+def parse_last_update(raw_pacman_log: str) -> datetime | None:
+    split_line = raw_pacman_log.splitlines()
+    if not split_line:
+        raise ValueError("pacman.log is empty")
+    reversed_pacman_log_list = list(reversed(split_line))
+    transaction_completed = False
+    for line in reversed_pacman_log_list:
+        if TRANSACTION_COMPLETED_LOG in line:
+            transaction_completed = True
+            continue
+        if SYSTEM_UPGRADE_LOG in line:
+            if transaction_completed:
+                timestamp = line.split()[0][1:-1]
+                return datetime.fromisoformat(timestamp)
+            continue
+        if PACMAN_RUNNING_LOG in line:
+            transaction_completed = False
+
+    warnings.warn("Could not find system update on pacman_log")
+    return None
+
+
 def read_install_date() -> str:
     with open(PACMAN_LOG, "r") as info:
         unparsed_install_date = info.readline()
@@ -300,9 +330,26 @@ def get_install_date() -> datetime:
     return install_date
 
 
+def get_last_update() -> datetime | None:
+    try:
+        raw_pacman_log = read_pacman_log()
+    except OSError as error:
+        warnings.warn(f"Received {error} while trying to read pacman log")
+        return None
+
+    try:
+        last_update_date = parse_last_update(raw_pacman_log)
+    except ValueError as error:
+        warnings.warn(f"{error}")
+        return None
+
+    return last_update_date
+
+
 if __name__ == "__main__":
     print(get_session_info())
     print(get_sys_info())
     print(get_host_info())
     print(get_install_date())
     print(get_boot_info())
+    print(get_last_update())
