@@ -20,6 +20,7 @@ PACMAN_LOG = "/var/log/pacman.log"
 SYSTEM_UPGRADE_LOG = "starting full system upgrade"
 TRANSACTION_COMPLETED_LOG = "transaction completed"
 PACMAN_RUNNING_LOG = "[PACMAN] Running"
+MESSAGE_ID_HASH = "b07a249cd024414a82dd00cd181378ff"
 UNIT_SECONDS = {"us": 1e-6, "ms": 1e-3, "s": 1, "min": 60, "h": 3600}
 
 
@@ -62,6 +63,17 @@ def read_systemd_analyze() -> subprocess.CompletedProcess[str]:
     return subprocess.run("systemd-analyze", capture_output=True, check=False, text=True, env=env)
 
 
+def read_recent_boots() -> subprocess.CompletedProcess[str]:
+    env = {**os.environ, "LC_ALL": "C"}
+    return subprocess.run(
+        ["journalctl", "_PID=1", f"MESSAGE_ID={MESSAGE_ID_HASH}", "-o", "cat", "-n", "7"],
+        capture_output=True,
+        check=False,
+        text=True,
+        env=env,
+    )
+
+
 def parse_timespan(text: str) -> float:
     total = 0.0
     for token in text.split():  # "1min 4.615s" -> ["1min", "4.615s"]
@@ -71,6 +83,16 @@ def parse_timespan(text: str) -> float:
             raise ValueError(f"unknown time unit in {token!r}")
         total += float(number) * UNIT_SECONDS[unit]
     return total
+
+
+def parse_recent_boots(boots: str) -> list[float]:
+    total_list: list[float] = []
+    for line in boots.splitlines():
+        _, total_text = line.removeprefix("Startup finished in").strip().split(" = ")
+        total = parse_timespan(total_text.strip().removesuffix("."))
+        total_list.append(total)
+
+    return total_list
 
 
 def parse_systemd_analyze(raw_systemd: str) -> BootInfo:
@@ -346,10 +368,36 @@ def get_last_update() -> datetime | None:
     return last_update_date
 
 
+def get_recent_boots() -> list[float] | None:
+    try:
+        recent_boots = read_recent_boots()
+        recent_boots_stdout = recent_boots.stdout
+
+    except OSError as error:
+        warnings.warn(f"Received {error} while trying to read journalctl")
+        return None
+
+    if recent_boots.returncode != 0:
+        warnings.warn(f"{recent_boots.stderr.strip()}")
+        return None
+
+    try:
+        last_boots = parse_recent_boots(recent_boots_stdout)
+    except ValueError as error:
+        warnings.warn(f"Received {error} while trying to parse journalctl")
+        return None
+
+    if not last_boots:
+        return None
+
+    return last_boots
+
+
 if __name__ == "__main__":
     print(get_session_info())
     print(get_sys_info())
     print(get_host_info())
     print(get_install_date())
     print(get_boot_info())
+    print(get_recent_boots())
     print(get_last_update())
