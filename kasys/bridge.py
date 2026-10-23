@@ -176,6 +176,7 @@ class Monitor(QObject):
         # main.py each time a daemon's window is shown.
         self._sys: sysinfo.SysInfo | None = None
         self._install_date: datetime | None = None
+        self._last_update: datetime | None = None
         self.read_system_info()
 
         # Model and core counts never change while running: read once.
@@ -223,6 +224,7 @@ class Monitor(QObject):
     def read_system_info(self) -> None:
         self._sys = _read("system info", sysinfo.get_sys_info, None)
         self._install_date = _read("install date", sysinfo.get_install_date, None)
+        self._last_update = _read("last update", sysinfo.get_last_update, None)
         self.systemInfoChanged.emit()
 
     @Slot(result=bool)
@@ -499,6 +501,14 @@ class Monitor(QObject):
         # Milliseconds since the epoch: what a JS Date takes.
         return self._install_date.timestamp() * 1000 if self._install_date else MISSING
 
+    def _get_last_update(self) -> float:
+        return self._last_update.timestamp() * 1000 if self._last_update else MISSING
+
+    def _get_last_update_age(self) -> float:
+        if self._last_update is None:
+            return MISSING
+        return (datetime.now().astimezone() - self._last_update).total_seconds()
+
     hostname = Property(str, _get_hostname, notify=systemInfoChanged)
     osName = Property(str, _get_os_name, notify=systemInfoChanged)
     shellName = Property(str, _get_shell_name, notify=systemInfoChanged)
@@ -508,6 +518,10 @@ class Monitor(QObject):
     installDate = Property(float, _get_install_date, notify=systemInfoChanged)
     # Days since install; notified every tick so it turns over at midnight.
     osAgeDays = Property(int, _get_os_age_days, notify=tick)
+    # Last `pacman -Syu`, in ms since the epoch; MISSING if none found.
+    lastUpdate = Property(float, _get_last_update, notify=systemInfoChanged)
+    # Seconds since the last update; notified every tick so "3h ago" moves.
+    lastUpdateAge = Property(float, _get_last_update_age, notify=tick)
 
     # -- host info (read once at startup) -------------------------------------
     def _get_kernel(self) -> str:

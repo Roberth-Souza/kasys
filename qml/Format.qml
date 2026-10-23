@@ -72,6 +72,19 @@ QtObject {
         return minutes + "m";
     }
 
+    // "2d ago", "3h ago", "12m ago"; under a minute is "Just now".
+    function ago(seconds) {
+        if (seconds < 0)
+            return missing;
+        if (seconds >= 86400)
+            return Math.floor(seconds / 86400) + "d ago";
+        if (seconds >= 3600)
+            return Math.floor(seconds / 3600) + "h ago";
+        if (seconds >= 60)
+            return Math.floor(seconds / 60) + "m ago";
+        return "Just now";
+    }
+
     function days(n) { return n < 0 ? missing : n + (n === 1 ? " day" : " days"); }
 
     function text(s) { return s === "" ? missing : s; }

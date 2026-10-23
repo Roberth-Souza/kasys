@@ -34,11 +34,13 @@ Column {
             detail: monitor.installDate < 0 ? "" : "Installed " + Format.date(monitor.installDate)
         }
 
-        PendingCard {
+        StatCard {
             width: Config.columnWidth
             height: Config.statCardHeight
             title: "LAST UPDATE"
             glyph: Config.glyphLastUpdate
+            value: Format.ago(monitor.lastUpdateAge)
+            detail: monitor.lastUpdate < 0 ? "" : Format.date(monitor.lastUpdate)
         }
     }
 
