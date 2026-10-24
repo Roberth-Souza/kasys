@@ -120,7 +120,7 @@ QtObject {
     readonly property int meterValueWidth: 72
     readonly property int dropdownWidth: 120
 
-    // CPU card: model + core counts, average / peak, top processes by CPU.
+    // CPU card: model + core counts, total / peak, top processes by CPU.
     readonly property int cpuModelHeight: 20
     readonly property int cpuCoresHeight: 18
     readonly property int cpuStatLabelHeight: 18

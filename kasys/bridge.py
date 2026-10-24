@@ -16,7 +16,6 @@ import sys
 from collections import deque
 from collections.abc import Callable
 from datetime import datetime
-from statistics import fmean
 
 from PySide6.QtCore import Property, QCoreApplication, QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QGuiApplication
@@ -320,9 +319,6 @@ class Monitor(QObject):
     def _get_cpu_history(self) -> list[float]:
         return list(self._cpu_history)
 
-    def _get_cpu_average(self) -> float:
-        return fmean(self._cpu_history) if self._cpu_history else MISSING
-
     def _get_cpu_peak(self) -> float:
         return max(self._cpu_history) if self._cpu_history else MISSING
 
@@ -345,8 +341,7 @@ class Monitor(QObject):
     # kHz, or MISSING when cpufreq is not exposed.
     cpuFreq = Property(int, _get_cpu_freq, notify=tick)
     cpuHistory = Property(list, _get_cpu_history, notify=tick)
-    # Mean and max of cpuHistory, or MISSING before the first tick.
-    cpuAverage = Property(float, _get_cpu_average, notify=tick)
+    # Max of cpuHistory, or MISSING before the first tick.
     cpuPeak = Property(float, _get_cpu_peak, notify=tick)
     # From /proc/cpuinfo at startup: "" / MISSING when the field is absent.
     cpuModel = Property(str, _get_cpu_model, constant=True)

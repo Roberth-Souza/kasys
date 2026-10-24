@@ -1,12 +1,12 @@
 import QtQuick
 import "."
 
-// Total usage graph, the model and its core counts, average and peak over
-// the graph's span, then the busiest processes by CPU.
+// Total usage graph, the model and its core counts, current total and peak
+// over the graph's span, then the busiest processes by CPU.
 Card {
     id: root
 
-    // Seconds of history behind the average and peak: under a minute right
+    // Seconds of history behind the peak: under a minute right
     // after launch, so the label never claims more than it has.
     readonly property string span: monitor.cpuHistory.length + "s"
 
@@ -31,6 +31,7 @@ Card {
     component Stat: Column {
         property string label: ""
         property string value: Format.missing
+        property color valueColor: Config.fgActive
 
         Label {
             width: parent.width
@@ -42,7 +43,7 @@ Card {
         Label {
             width: parent.width
             text: value
-            color: Config.fgActive
+            color: valueColor
             font.pixelSize: Config.fontSizeLarge
         }
     }
@@ -110,8 +111,8 @@ Card {
             Stat {
                 anchors.left: parent.left
                 width: parent.width / 2 - Config.cardPad
-                label: "AVERAGE · " + root.span
-                value: Format.percent(monitor.cpuAverage)
+                label: "TOTAL"
+                value: Format.percent(monitor.cpuUsage)
             }
 
             Rectangle {
@@ -127,6 +128,7 @@ Card {
                 width: parent.width / 2 - Config.cardPad
                 label: "PEAK · " + root.span
                 value: Format.percent(monitor.cpuPeak)
+                valueColor: Config.fg
             }
         }
 
