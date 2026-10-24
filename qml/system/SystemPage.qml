@@ -57,11 +57,9 @@ Column {
             height: root.middleHeight
         }
 
-        PendingCard {
+        StartupServicesCard {
             width: Config.halfWidth
             height: root.middleHeight
-            title: "Startup services"
-            glyph: Config.glyphServices
         }
     }
 

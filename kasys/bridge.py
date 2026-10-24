@@ -190,6 +190,8 @@ class Monitor(QObject):
         # The boot times are fixed once systemd is done booting. Started early
         # (autostart), it is not done yet: ask again until it is.
         self._boot: sysinfo.BootInfo | None = None
+        # Units on systemd's critical chain, slowest first.
+        self._critical_chain: list[sysinfo.ChainUnit] = []
         self._boot_timer = QTimer(self)
         self._boot_timer.setInterval(BOOT_RETRY_MS)
         self._boot_timer.timeout.connect(self._read_boot_info)
@@ -235,8 +237,10 @@ class Monitor(QObject):
         """Read the boot times; False while systemd is still booting."""
         try:
             self._boot = _read("boot info", sysinfo.get_boot_info, None)
+            chain = _read("critical chain", sysinfo.get_critical_chain, None) or []
         except sysinfo.BootNotFinishedError:
             return False
+        self._critical_chain = sorted(chain, key=lambda unit: unit.seconds, reverse=True)
         # Read, or failed for good: either way there is nothing to retry.
         self._boot_timer.stop()
         self.bootInfoChanged.emit()
@@ -586,6 +590,13 @@ class Monitor(QObject):
     bootTotal = Property(float, _get_boot_total, notify=bootInfoChanged)
     # One dict per phase in systemd's order: name (raw, "firmware") and seconds.
     bootPhases = Property(list, _get_boot_phases, notify=bootInfoChanged)
+
+    def _get_startup_services(self) -> list[dict[str, object]]:
+        return [{"name": unit.name, "seconds": unit.seconds} for unit in self._critical_chain]
+
+    # Every unit that held up the boot, slowest first: name (raw,
+    # "proton.VPN.service") and seconds. QML picks how many rows to show.
+    startupServices = Property(list, _get_startup_services, notify=bootInfoChanged)
 
     @Slot(str, result=float)
     def refreshRate(self, screen_name: str) -> float:

@@ -194,6 +194,14 @@ QtObject {
     readonly property real bootsLastDotStroke: 1.5
     readonly property int bootsValuePad: 2        // black margin around a time label
 
+    // Startup services: slowest units of the critical chain, bars scaled to
+    // the slowest. The rows share whatever height the subtitle leaves.
+    readonly property int servicesRows: 5
+    readonly property int servicesSubtitleHeight: 18
+    readonly property int servicesNameWidth: 240
+    readonly property int servicesTimeWidth: 64
+    readonly property int servicesBarHeight: 8
+
     // System card: the avatar takes whatever height the text leaves.
     readonly property int avatarGlyphSize: 64
     readonly property int statGap: 4        // small label to its big value
