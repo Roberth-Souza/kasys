@@ -20,8 +20,7 @@ from datetime import datetime
 from PySide6.QtCore import Property, QCoreApplication, QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QGuiApplication
 
-from kasys.collectors import avatar, cpu, disk, gpu, mem, network, processes, sensors
-from kasys.collectors import sys as sysinfo
+from kasys.collectors import avatar, boot, cpu, disk, gpu, host, mem, network, pacman, processes, sensors, session
 
 TICK_MS = 1000
 # One minute of samples at one per second: what every graph spans.
@@ -173,7 +172,7 @@ class Monitor(QObject):
 
         # System info is read once per opening: at launch, and again by
         # main.py each time a daemon's window is shown.
-        self._sys: sysinfo.SysInfo | None = None
+        self._sys: session.SysInfo | None = None
         self._install_date: datetime | None = None
         self._last_update: datetime | None = None
         self._recent_boots: list[float] = []
@@ -183,15 +182,15 @@ class Monitor(QObject):
         self._cpu_info: cpu.CpuInfo | None = _read("cpu info", cpu.get_cpu_info, None)
 
         # Kernel, boot mode and package count: read once, like the CPU model.
-        self._host: sysinfo.HostInfo | None = _read("host info", sysinfo.get_host_info, None)
+        self._host: host.HostInfo | None = _read("host info", host.get_host_info, None)
         # The desktop session outlives the app: read once.
-        self._session: sysinfo.SessionInfo | None = _read("session info", sysinfo.get_session_info, None)
+        self._session: session.SessionInfo | None = _read("session info", session.get_session_info, None)
 
         # The boot times are fixed once systemd is done booting. Started early
         # (autostart), it is not done yet: ask again until it is.
-        self._boot: sysinfo.BootInfo | None = None
+        self._boot: boot.BootInfo | None = None
         # Units on systemd's critical chain, slowest first.
-        self._critical_chain: list[sysinfo.ChainUnit] = []
+        self._critical_chain: list[boot.ChainUnit] = []
         self._boot_timer = QTimer(self)
         self._boot_timer.setInterval(BOOT_RETRY_MS)
         self._boot_timer.timeout.connect(self._read_boot_info)
@@ -224,21 +223,21 @@ class Monitor(QObject):
         self._timer.start()
 
     def read_system_info(self) -> None:
-        self._sys = _read("system info", sysinfo.get_sys_info, None)
-        self._install_date = _read("install date", sysinfo.get_install_date, None)
-        self._last_update = _read("last update", sysinfo.get_last_update, None)
+        self._sys = _read("system info", session.get_sys_info, None)
+        self._install_date = _read("install date", pacman.get_install_date, None)
+        self._last_update = _read("last update", pacman.get_last_update, None)
         # The journal only gains this boot once systemd is done: an opening
         # after that picks it up.
-        self._recent_boots = _read("recent boots", sysinfo.get_recent_boots, None) or []
+        self._recent_boots = _read("recent boots", boot.get_recent_boots, None) or []
         self.systemInfoChanged.emit()
 
     @Slot(result=bool)
     def _read_boot_info(self) -> bool:
         """Read the boot times; False while systemd is still booting."""
         try:
-            self._boot = _read("boot info", sysinfo.get_boot_info, None)
-            chain = _read("critical chain", sysinfo.get_critical_chain, None) or []
-        except sysinfo.BootNotFinishedError:
+            self._boot = _read("boot info", boot.get_boot_info, None)
+            chain = _read("critical chain", boot.get_critical_chain, None) or []
+        except boot.BootNotFinishedError:
             return False
         self._critical_chain = sorted(chain, key=lambda unit: unit.seconds, reverse=True)
         # Read, or failed for good: either way there is nothing to retry.
