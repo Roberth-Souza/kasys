@@ -54,13 +54,19 @@ class BootInfo:
     total: float
 
 
+@dataclass(frozen=True)
+class ChainUnit:
+    name: str
+    seconds: float
+
+
 class BootNotFinishedError(Exception):
     """systemd has not finished booting yet; try again later"""
 
 
-def read_systemd_analyze() -> subprocess.CompletedProcess[str]:
+def read_systemd_analyze(*subcommand: str) -> subprocess.CompletedProcess[str]:
     env = {**os.environ, "LC_ALL": "C"}
-    return subprocess.run("systemd-analyze", capture_output=True, check=False, text=True, env=env)
+    return subprocess.run(["systemd-analyze", *subcommand], capture_output=True, check=False, text=True, env=env)
 
 
 def read_recent_boots() -> subprocess.CompletedProcess[str]:
@@ -83,6 +89,18 @@ def parse_timespan(text: str) -> float:
             raise ValueError(f"unknown time unit in {token!r}")
         total += float(number) * UNIT_SECONDS[unit]
     return total
+
+
+def parse_critical_chain(critical_chain: str) -> list[ChainUnit]:
+    result: list[ChainUnit] = []
+    _, critical_chain_tree = critical_chain.split("\n\n", 1)
+    makes_boot_slower = [e for e in critical_chain_tree.splitlines() if "+" in e]
+    for line in makes_boot_slower:
+        name = line.split()[0][2:]
+        parsed_time = parse_timespan(line.partition("+")[-1])
+        chain_unit = ChainUnit(name, parsed_time)
+        result.append(chain_unit)
+    return result
 
 
 def parse_recent_boots(boots: str) -> list[float]:
@@ -296,9 +314,9 @@ def read_shell_name() -> str:
     return os.path.basename(user_passwd.pw_shell)
 
 
-def get_boot_info() -> BootInfo | None:
+def try_read_systemd_analyze(*subcommand: str) -> str | None:
     try:
-        result = read_systemd_analyze()
+        result = read_systemd_analyze(*subcommand)
     except OSError as error:
         warnings.warn(f"could not run systemd-analyze: {error}")
         return None
@@ -310,6 +328,14 @@ def get_boot_info() -> BootInfo | None:
             warnings.warn(f"{result.stderr}")
             return None
 
+    return stdout
+
+
+def get_boot_info() -> BootInfo | None:
+    stdout = try_read_systemd_analyze()
+    if stdout is None:
+        return None
+
     try:
         boot_info = parse_systemd_analyze(stdout)
     except (ValueError, IndexError) as error:
@@ -317,6 +343,21 @@ def get_boot_info() -> BootInfo | None:
         return None
 
     return boot_info
+
+
+def get_critical_chain() -> list[ChainUnit] | None:
+    critical_chain_tree = try_read_systemd_analyze("critical-chain")
+
+    if critical_chain_tree is None:
+        return None
+
+    try:
+        chain_list = parse_critical_chain(critical_chain_tree)
+    except (ValueError, IndexError) as error:
+        warnings.warn(f"Received {error} while trying to parse critical-chain")
+        return None
+
+    return chain_list
 
 
 def get_session_info() -> SessionInfo:
@@ -401,3 +442,4 @@ if __name__ == "__main__":
     print(get_boot_info())
     print(get_recent_boots())
     print(get_last_update())
+    print(get_critical_chain())
