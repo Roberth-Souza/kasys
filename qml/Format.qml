@@ -56,6 +56,14 @@ QtObject {
 
     function rpm(n) { return n < 0 ? missing : n + " RPM"; }
 
+    // µW; the cap is left out when unknown.
+    function power(uW, capUW) {
+        if (uW < 0)
+            return missing;
+        const watts = Math.round(uW / 1e6) + " W";
+        return capUW < 0 ? watts : watts + " of " + Math.round(capUW / 1e6) + " W";
+    }
+
     function ghz(kHz) { return kHz < 0 ? missing : (kHz / 1e6).toFixed(2) + " GHz"; }
 
     // "3d 4h", "2h 34m" or "34m": short enough for the big System card digits.

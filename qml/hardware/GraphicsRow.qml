@@ -12,8 +12,8 @@ PartRow {
         width: parent.width
         title: "Graphics"
         name: Format.text(monitor.gpuName)
-        detail: monitor.gpuVramTotal < 0 ? Format.missing : Format.bytes(monitor.gpuVramTotal) + " VRAM"
-        detailPending: true
+        detail: monitor.gpuVramTotal < 0 ? Format.missing
+            : Format.bytes(monitor.gpuVramTotal) + " VRAM" + (monitor.gpuVramType === "" ? "" : " · " + monitor.gpuVramType)
     }
 
     PartRule {
@@ -24,7 +24,7 @@ PartRow {
         width: parent.width
         stats: [
             { "key": "Interface", "value": Format.notBuilt },
-            { "key": "VBIOS", "value": Format.notBuilt },
+            { "key": "Mesa", "value": Format.notBuilt },
             { "key": "Driver", "value": Format.text(monitor.gpuDriver) }
         ]
     }
@@ -47,7 +47,7 @@ PartRow {
             width: parent.width
             stats: [
                 { "key": "Fan", "value": Format.rpm(monitor.gpuFan) },
-                { "key": "Power draw", "value": Format.notBuilt }
+                { "key": "Power draw", "value": Format.power(monitor.gpuPower, monitor.gpuPowerCap) }
             ]
         }
     ]
