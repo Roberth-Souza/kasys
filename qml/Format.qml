@@ -115,6 +115,31 @@ QtObject {
     // "Apr 23, 2026" from milliseconds since the epoch.
     function date(ms) { return ms < 0 ? missing : new Date(ms).toLocaleString(dateLocale, "MMM d, yyyy"); }
 
+    // "2026-04-17" from milliseconds since the epoch.
+    function isoDate(ms) { return ms < 0 ? missing : new Date(ms).toLocaleString(dateLocale, "yyyy-MM-dd"); }
+
+    // Display connector type from its DRM name: "DP-2" -> "DisplayPort",
+    // "HDMI-A-1" -> "HDMI". An unknown type is shown raw.
+    readonly property var connectorTypes: ({
+        "DP": "DisplayPort",
+        "eDP": "eDP",
+        "HDMI-A": "HDMI",
+        "HDMI-B": "HDMI",
+        "DVI-I": "DVI",
+        "DVI-D": "DVI",
+        "DVI-A": "DVI",
+        "VGA": "VGA",
+        "LVDS": "LVDS"
+    })
+
+    function connector(name) {
+        const type = name.replace(/-\d+$/, "");
+        return connectorTypes[type] ?? text(type);
+    }
+
+    // A value that is drawn dim: failed, or its collector is not written yet.
+    function absent(s) { return s === missing || s === notBuilt; }
+
     // When the machine came up, from the uptime: "07:42" if today,
     // "Oct 18, 07:42" before that.
     function bootClock(uptimeSeconds) {

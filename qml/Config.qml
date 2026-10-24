@@ -202,6 +202,42 @@ QtObject {
     readonly property int servicesTimeWidth: 64
     readonly property int servicesBarHeight: 8
 
+    // Hardware page: one card per part, split drawing | identity | live by
+    // vertical rules, then Motherboard | Display side by side taking what is
+    // left. Drawings are line art in one stroke weight whatever their size.
+    readonly property color artLine: "#d4d4d4"
+    readonly property real artStroke: 1.3
+    readonly property real artThinStroke: 0.8
+    readonly property real artThinOpacity: 0.7
+    readonly property int artCpuWidth: 100
+    readonly property int artGpuWidth: 252
+    readonly property int artRamWidth: 270
+    readonly property int artNvmeWidth: 270
+    readonly property int artBoardWidth: 112
+    readonly property int artMonitorWidth: 130
+    readonly property int partArtWidth: 290      // drawing column of a full-width row
+    readonly property int partLiveWidth: 351     // live column, text width
+    readonly property int partColumnGap: 24      // each side of a column rule
+    readonly property int partSplitArtWidth: 150 // drawing column of a half card
+    readonly property int partHeadHeight: 20
+    readonly property int partNameHeight: 34
+    readonly property int partSubHeight: 18
+    readonly property int partRuleGap: 8         // above and below a rule
+    readonly property int partKeyHeight: 16
+    readonly property int partValueHeight: 20
+    readonly property int partMidHeight: 32      // one line at fontSizeLarge
+    readonly property int partStatGap: 16        // each side of a stat rule
+    readonly property int partBarHeight: 6
+    readonly property int partBarGap: 6
+    readonly property int partSlotHeight: 20
+    readonly property int partSlotGap: 12
+    readonly property int partPairLabelWidth: 90
+    readonly property int hwCpuHeight: 136
+    readonly property int hwGpuHeight: 164
+    readonly property int hwMemoryHeight: 128
+    readonly property int hwStorageHeight: 150
+    readonly property int memorySlots: 4         // drawn until the memory collector says how many
+
     // System card: the avatar takes whatever height the text leaves.
     readonly property int avatarGlyphSize: 64
     readonly property int statGap: 4        // small label to its big value
