@@ -15,7 +15,7 @@ Black and white, no colors, no noise. Open it, glance, close it.
 
 <div align="center">
 
-![Screenshot of kasys](https://github.com/user-attachments/assets/7003af84-b593-41f7-9597-21dc5fe88f91)
+![Screenshot of the kasys Overview page](https://github.com/user-attachments/assets/7003af84-b593-41f7-9597-21dc5fe88f91)
 
 </div>
 
@@ -29,7 +29,7 @@ from `/proc` and `/sys`.
 
 The Overview page shows, in one screen:
 
-- **CPU** — total usage with a 60s graph, model, cores / threads, 60s average and peak, top 3 processes by CPU
+- **CPU** — total usage with a 60s graph, model, cores / threads, current total and 60s peak, top 3 processes by CPU
 - **Memory** — used / total
 - **Disk** — free space per disk
 - **Network** — download / upload speed
@@ -38,12 +38,26 @@ The Overview page shows, in one screen:
 - **Processes** — top processes by memory
 - **System** — hostname, OS, uptime, OS age, shell and your avatar
 
+<div align="center">
+
+![Screenshot of the kasys System page](https://github.com/user-attachments/assets/f5702ec3-04ee-4c38-840f-bb2a2e53f639)
+
+</div>
+
+The System page is about the software side of the machine:
+
+- **Uptime, OS age, last update** — when the system booted, when it was installed, when the last full upgrade finished
+- **Boot analysis** — total boot time split into firmware, loader, kernel, initrd and userspace, and the longest stage
+- **Recent boots** — boot time of the last 7 startups
+- **Startup services** — what held up the boot (systemd's critical chain), slowest first
+- **Host information** — OS, kernel, architecture, package count, boot mode, Secure Boot, bootloader
+- **Desktop & session** — desktop, display server, shell, resolution and refresh rate
+
 ## Design
 
 - **Monochrome.** Black, white and grays. The data is the only thing that stands out.
 - **Minimal.** No settings menus, no themes, no animations for show.
 - **Glanceable.** It is an overlay: one keybind opens it, the same keybind closes it.
-- **Keyboard-first.** `j` / `k` to switch pages, `q` or `Esc` to close.
 
 ## Who made what
 
@@ -150,7 +164,7 @@ kasys was built and tested on **one machine** (CachyOS, Hyprland, Ryzen 5
 
 **General**
 - Linux and Wayland only, on a compositor with wlr-layer-shell. No X11, no GNOME.
-- Only the **Overview** page exists. Processes, Hardware and System are placeholders.
+- Only **Overview** and **System** are built. Processes and Hardware are placeholders.
 
 **GPU**
 - **AMD only** (`amdgpu` driver). NVIDIA and Intel GPUs show nothing.
@@ -169,15 +183,19 @@ kasys was built and tested on **one machine** (CachyOS, Hyprland, Ryzen 5
 **Processes**
 - No sorting, filtering or killing yet.
 
+**System page**
+- **pacman only.** Package count and last update read pacman's files; other package managers show nothing.
+- The bootloader is shown only if it sets the `LoaderInfo` EFI variable (systemd-boot and Limine do; GRUB likely does not).
+
 **Avatar**
 - A fastfetch config with comments is not read (it is JSONC, not JSON).
 - ASCII logos are not supported, only images.
 
 ## Roadmap
 
-The sidebar already has the other pages; only the Overview is built.
+The sidebar already has every page; Processes and Hardware are next.
 
 - [x] **Overview** — everything at a glance, on one screen
+- [x] **System** — OS, boot, session and the rest of the setup info
 - [ ] **Processes** — the full process list, sortable by any column
 - [ ] **Hardware** — CPU, GPU, disks, motherboard and sensors in detail
-- [ ] **System** — OS, session and the rest of the setup info
