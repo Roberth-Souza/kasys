@@ -2,6 +2,7 @@
 
 import glob
 import os
+import subprocess
 import warnings
 from dataclasses import dataclass
 
@@ -14,6 +15,10 @@ VRAM_USED_KEY = "mem_info_vram_used"
 VRAM_TOTAL_KEY = "mem_info_vram_total"
 FAN_KEY = "fan1_input"
 CLOCK_KEY = "freq1_input"
+POWER_AVERAGE_KEY = "power1_average"
+POWER_CAP_KEY = "power1_cap"
+GPU_MEMORY_LINE_IN_KERNEL_LOG = "RAM width"
+AMD_MEMORY_TYPES = {"DDR", "HBM"}
 REVISION_KEY = "revision"
 DEVICE_KEY = "device"
 
@@ -25,6 +30,23 @@ class GpuStats:
     vram_used: int
     fan_rpm: int | None
     clock: int | None
+    power_average: int | None
+    power_cap: int | None
+
+
+def read_kernel_log() -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["journalctl", "-k", "-b", "-o", "cat"], text=True, check=False, capture_output=True)
+
+
+def parse_vram_type(kernel_log: str) -> str | None:
+    for line in kernel_log.splitlines():
+        if GPU_MEMORY_LINE_IN_KERNEL_LOG in line:
+            memory_type = line.split()[-1].strip()
+            if any(e in memory_type for e in AMD_MEMORY_TYPES):
+                return memory_type
+            else:
+                raise ValueError(f"Unrecognized VRAM type '{memory_type}'")
+    return None
 
 
 def solve_symlink(raw_path: str) -> str:
@@ -102,8 +124,41 @@ def get_gpu_stats(gpu_dir: str, hwmon_path: str | None) -> GpuStats:
     gpu_vram_used = int(read_value(gpu_dir, VRAM_USED_KEY))
     gpu_rpm = read_hwmon_info(hwmon_path, FAN_KEY)
     gpu_clock = read_hwmon_info(hwmon_path, CLOCK_KEY)
+    gpu_power_average = read_hwmon_info(hwmon_path, POWER_AVERAGE_KEY)
+    gpu_power_cap = read_hwmon_info(hwmon_path, POWER_CAP_KEY)
 
-    return GpuStats(gpu_busy_percent, gpu_vram_total, gpu_vram_used, gpu_rpm, gpu_clock)
+    return GpuStats(
+        busy_percentage=gpu_busy_percent,
+        vram_total=gpu_vram_total,
+        vram_used=gpu_vram_used,
+        fan_rpm=gpu_rpm,
+        clock=gpu_clock,
+        power_average=gpu_power_average,
+        power_cap=gpu_power_cap,
+    )
+
+
+def get_vram_type() -> str | None:
+    try:
+        kernel_log = read_kernel_log()
+    except OSError as error:
+        warnings.warn(f"Received {error} while trying to read kernel log")
+        return None
+
+    if kernel_log.returncode != 0:
+        warnings.warn(f"{kernel_log.stderr}")
+        return None
+
+    try:
+        vram_type = parse_vram_type(kernel_log.stdout)
+    except ValueError as error:
+        warnings.warn(f"{error}")
+        return None
+
+    if vram_type is None:
+        warnings.warn(f"Could not find '{GPU_MEMORY_LINE_IN_KERNEL_LOG}' line in kernel log")
+
+    return vram_type
 
 
 if __name__ == "__main__":
@@ -112,3 +167,4 @@ if __name__ == "__main__":
         hwmon_path = find_hwmon_path(gpu_dir)
         print(get_gpu_stats(gpu_dir, hwmon_path))
         print(get_gpu_name(gpu_dir))
+        print(get_vram_type())
