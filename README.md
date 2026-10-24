@@ -38,6 +38,8 @@ The Overview page shows, in one screen:
 - **Processes** — top processes by memory
 - **System** — hostname, OS, uptime, OS age, shell and your avatar
 
+---
+
 <div align="center">
 
 ![Screenshot of the kasys System page](https://github.com/user-attachments/assets/f5702ec3-04ee-4c38-840f-bb2a2e53f639)
