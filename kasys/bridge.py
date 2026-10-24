@@ -217,12 +217,15 @@ class Monitor(QObject):
         self._gpu_dir: str | None = _read("gpu", gpu.find_gpu_dir, None)
         self._gpu_hwmon: str | None = None
         self._gpu_name = ""
+        self._gpu_vram_type = ""
         if self._gpu_dir is not None:
             gpu_dir = self._gpu_dir
             self._gpu_hwmon = gpu.find_hwmon_path(gpu_dir)
             name = _read("gpu name", lambda: gpu.get_gpu_name(gpu_dir), None)
             # The card header already says GPU; the vendor is noise next to it.
             self._gpu_name = name.removeprefix("AMD ") if name else ""
+            # From the boot's kernel log, which no later reading changes.
+            self._gpu_vram_type = _read("vram type", gpu.get_vram_type, None) or ""
 
         # The avatar is resolved once at startup: changing it means a restart.
         avatar_path = _read("avatar", avatar.get_avatar_path, None)
@@ -388,6 +391,9 @@ class Monitor(QObject):
     def _get_gpu_name(self) -> str:
         return self._gpu_name
 
+    def _get_gpu_vram_type(self) -> str:
+        return self._gpu_vram_type
+
     def _get_gpu_usage(self) -> float:
         return self._gpu.busy_percentage if self._gpu else MISSING
 
@@ -421,8 +427,18 @@ class Monitor(QObject):
         fan = self._gpu.fan_rpm if self._gpu else None
         return fan if fan is not None else MISSING
 
+    def _get_gpu_power(self) -> float:
+        power = self._gpu.power_average if self._gpu else None
+        return float(power) if power is not None else MISSING
+
+    def _get_gpu_power_cap(self) -> float:
+        cap = self._gpu.power_cap if self._gpu else None
+        return float(cap) if cap is not None else MISSING
+
     # From amdgpu.ids at startup, "AMD " dropped; "" when unknown or no GPU.
     gpuName = Property(str, _get_gpu_name, constant=True)
+    # "GDDR6", "HBM", ... from the kernel log; "" when not found.
+    gpuVramType = Property(str, _get_gpu_vram_type, constant=True)
     # 0..100, or MISSING without an amdgpu card.
     gpuUsage = Property(float, _get_gpu_usage, notify=tick)
     gpuHistory = Property(list, _get_gpu_history, notify=tick)
@@ -440,6 +456,9 @@ class Monitor(QObject):
     gpuClock = Property(float, _get_gpu_clock, notify=tick)
     # RPM, or MISSING when the card has no fan reading.
     gpuFan = Property(int, _get_gpu_fan, notify=tick)
+    # µW of the PPT sensor and its limit, floats like gpuClock.
+    gpuPower = Property(float, _get_gpu_power, notify=tick)
+    gpuPowerCap = Property(float, _get_gpu_power_cap, notify=tick)
 
     # -- memory (bytes; floats because Qt's int is 32-bit) -------------------
     def _get_mem_total(self) -> float:
