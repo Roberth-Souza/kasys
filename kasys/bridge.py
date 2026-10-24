@@ -15,12 +15,26 @@ import re
 import sys
 from collections import deque
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, time
 
 from PySide6.QtCore import Property, QCoreApplication, QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QGuiApplication
 
-from kasys.collectors import avatar, boot, cpu, disk, gpu, host, mem, network, pacman, processes, sensors, session
+from kasys.collectors import (
+    avatar,
+    boot,
+    cpu,
+    disk,
+    gpu,
+    host,
+    mem,
+    motherboard,
+    network,
+    pacman,
+    processes,
+    sensors,
+    session,
+)
 
 TICK_MS = 1000
 # One minute of samples at one per second: what every graph spans.
@@ -183,6 +197,8 @@ class Monitor(QObject):
 
         # Kernel, boot mode and package count: read once, like the CPU model.
         self._host: host.HostInfo | None = _read("host info", host.get_host_info, None)
+        # BIOS and board only change after a flash and a reboot: read once.
+        self._board: motherboard.BoardInfo | None = _read("motherboard", motherboard.get_motherboard_info, None)
         # The desktop session outlives the app: read once.
         self._session: session.SessionInfo | None = _read("session info", session.get_session_info, None)
 
@@ -300,12 +316,16 @@ class Monitor(QObject):
         found.sort(key=lambda p: (-p.mem_bytes, -p.cpu_percent, p.pid))
         self._top_processes = found[:TOP_PROCESSES]
 
-    def _gpu_celsius(self, label: str) -> float:
-        """One sensor of the amdgpu hwmon chip (edge, junction, mem), or MISSING."""
+    def _chip_celsius(self, chip: str, label: str) -> float:
+        """One sensor of the first hwmon chip named `chip` (a KNOWN_CHIPS key), or MISSING."""
         for key, chip_sensors in self._sensors.items():
-            if _known_chip(key)[0] == "amdgpu":
+            if _known_chip(key)[0] == chip:
                 return next((s.celsius for s in chip_sensors if s.label == label), MISSING)
         return MISSING
+
+    def _gpu_celsius(self, label: str) -> float:
+        """One sensor of the amdgpu hwmon chip (edge, junction, mem), or MISSING."""
+        return self._chip_celsius("amdgpu", label)
 
     def _mem_percent(self) -> float:
         if self._mem is None:
@@ -337,6 +357,15 @@ class Monitor(QObject):
         info = self._cpu_info
         return info.threads if info and info.threads is not None else MISSING
 
+    def _get_cpu_temp(self) -> float:
+        # AMD or Intel, whichever chip is there, with the sensor the
+        # Temperatures card shows for it.
+        for chip in ("k10temp", "coretemp"):
+            celsius = self._chip_celsius(chip, KNOWN_CHIPS[chip][2])
+            if celsius != MISSING:
+                return celsius
+        return MISSING
+
     def _get_top_cpu_processes(self) -> list[dict[str, object]]:
         return [{"name": process.name, "cpu": process.cpu_percent} for process in self._top_cpu_processes]
 
@@ -350,6 +379,8 @@ class Monitor(QObject):
     cpuModel = Property(str, _get_cpu_model, constant=True)
     cpuCores = Property(int, _get_cpu_cores, constant=True)
     cpuThreads = Property(int, _get_cpu_threads, constant=True)
+    # °C of the package sensor (Tctl / Package id 0), or MISSING.
+    cpuTemp = Property(float, _get_cpu_temp, notify=tick)
     # Up to TOP_CPU_PROCESSES dicts, busiest first: name and cpu (0..100).
     topCpuProcesses = Property(list, _get_top_cpu_processes, notify=tick)
 
@@ -372,6 +403,16 @@ class Monitor(QObject):
     def _get_gpu_temp(self) -> float:
         return self._gpu_celsius("edge")
 
+    def _get_gpu_hotspot_temp(self) -> float:
+        return self._gpu_celsius("junction")
+
+    def _get_gpu_vram_temp(self) -> float:
+        return self._gpu_celsius("mem")
+
+    def _get_gpu_driver(self) -> str:
+        # find_gpu_dir only accepts cards bound to amdgpu.
+        return "amdgpu" if self._gpu_dir is not None else ""
+
     def _get_gpu_clock(self) -> float:
         clock = self._gpu.clock if self._gpu else None
         return float(clock) if clock is not None else MISSING
@@ -390,6 +431,11 @@ class Monitor(QObject):
     gpuVramTotal = Property(float, _get_gpu_vram_total, notify=tick)
     # °C of the edge sensor.
     gpuTemp = Property(float, _get_gpu_temp, notify=tick)
+    # °C of the junction (hotspot) and memory sensors.
+    gpuHotspotTemp = Property(float, _get_gpu_hotspot_temp, notify=tick)
+    gpuVramTemp = Property(float, _get_gpu_vram_temp, notify=tick)
+    # Kernel driver of the card, "" without one.
+    gpuDriver = Property(str, _get_gpu_driver, constant=True)
     # Hz (shader clock): float, since 2.5 GHz overflows a 32-bit int.
     gpuClock = Property(float, _get_gpu_clock, notify=tick)
     # RPM, or MISSING when the card has no fan reading.
@@ -562,6 +608,33 @@ class Monitor(QObject):
     bootloader = Property(str, _get_bootloader, constant=True)
     # Installed pacman packages.
     packages = Property(int, _get_packages, constant=True)
+
+    # -- motherboard (read once at startup) -----------------------------------
+    def _get_board_name(self) -> str:
+        board = self._board
+        return board.name if board and board.name is not None else ""
+
+    def _get_board_vendor(self) -> str:
+        board = self._board
+        return board.vendor if board and board.vendor is not None else ""
+
+    def _get_bios_version(self) -> str:
+        board = self._board
+        return board.bios_version if board and board.bios_version is not None else ""
+
+    def _get_bios_date(self) -> float:
+        board = self._board
+        if board is None or board.bios_date is None:
+            return MISSING
+        # Local midnight, so a JS Date shows the same calendar day.
+        return datetime.combine(board.bios_date, time()).timestamp() * 1000
+
+    # "" when unknown; vendor raw ("ASUSTeK COMPUTER INC.").
+    boardName = Property(str, _get_board_name, constant=True)
+    boardVendor = Property(str, _get_board_vendor, constant=True)
+    biosVersion = Property(str, _get_bios_version, constant=True)
+    # ms since the epoch (a date, no time), or MISSING.
+    biosDate = Property(float, _get_bios_date, constant=True)
 
     # -- session info (read once at startup) ----------------------------------
     def _get_desktop(self) -> str:
