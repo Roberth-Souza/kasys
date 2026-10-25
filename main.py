@@ -78,13 +78,8 @@ def main() -> int:
 
     engine = QQmlApplicationEngine()
     engine.addImportPath(str(ROOT / "qml"))
-    monitor = Monitor()
-
-    def reread_on_show() -> None:
-        if overlay.shown:
-            monitor.read_system_info()
-
-    overlay.shownChanged.connect(reread_on_show)
+    monitor = Monitor(shown=overlay.shown)
+    overlay.shownChanged.connect(lambda: monitor.set_shown(overlay.shown))
     engine.rootContext().setContextProperty("monitor", monitor)
     engine.rootContext().setContextProperty("overlay", overlay)
     engine.load(ROOT / "qml" / "Main.qml")

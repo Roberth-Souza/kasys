@@ -119,7 +119,8 @@ class Overlay(QObject):
 
     A plain run is open from launch and quits on close. A daemon (`--daemon`,
     started once by the session) starts hidden and only hides on close, so the
-    graphs keep filling while nobody is looking.
+    graphs keep filling while nobody is looking (`Monitor.set_shown` skips
+    everything else).
     """
 
     shownChanged = Signal()
@@ -159,8 +160,10 @@ class Monitor(QObject):
     systemInfoChanged = Signal()
     bootInfoChanged = Signal()
 
-    def __init__(self, parent: QObject | None = None) -> None:
+    def __init__(self, shown: bool, parent: QObject | None = None) -> None:
         super().__init__(parent)
+        # Hidden, only the graph sources are read and nothing reaches QML.
+        self._shown = shown
         self._cpu_sample: cpu.CpuSample | None = _read("cpu usage", cpu.CpuSample, None)
         self._net_sample: network.NetSample | None = _read("network", network.NetSample, None)
         self._disk_sample: disk.DiskSample | None = _read("disk activity", disk.DiskSample, None)
@@ -188,7 +191,7 @@ class Monitor(QObject):
         self._gpu_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
 
         # System info is read once per opening: at launch, and again by
-        # main.py each time a daemon's window is shown.
+        # set_shown each time a daemon's window is shown.
         self._sys: session.SysInfo | None = None
         self._install_date: datetime | None = None
         self._last_update: datetime | None = None
@@ -240,10 +243,11 @@ class Monitor(QObject):
         avatar_path = _read("avatar", avatar.get_avatar_path, None)
         self._avatar_url = QUrl.fromLocalFile(avatar_path).toString() if avatar_path else ""
 
-        # Memory, disk space, sensors and the GPU need no previous reading, so the first
-        # frame already has them. CPU and network are deltas and wait for the
-        # first tick.
+        # Instant readings need no previous one, so the first frame already
+        # has them. CPU, network, disk activity and processes are deltas and
+        # wait for the first tick.
         self._read_levels()
+        self._read_panel_values()
 
         self._timer = QTimer(self)
         self._timer.setInterval(TICK_MS)
@@ -273,13 +277,36 @@ class Monitor(QObject):
         self.bootInfoChanged.emit()
         return True
 
+    def set_shown(self, shown: bool) -> None:
+        """Follow the window: panel-only readings pause while it is hidden."""
+        self._shown = shown
+        if not shown:
+            # Hours old by the next opening: the cards start empty instead.
+            self._top_processes = []
+            self._top_cpu_processes = []
+            return
+        self.read_system_info()
+        # Process CPU % is a delta: without a fresh baseline the first tick
+        # would show the average over the whole time hidden.
+        if self._process_sample is not None:
+            _read("processes", self._process_sample.get_processes, None)
+        # Restarted so that first delta spans a whole tick, not a few ms.
+        self._timer.start()
+        self._read_panel_values()
+        self.tick.emit()
+
     def _read_levels(self) -> None:
+        """Instant readings behind a graph: kept going while hidden."""
         self._mem = _read("memory", mem.get_mem_info, self._mem)
+        self._read_gpu()
+
+    def _read_panel_values(self) -> None:
+        """Instant readings no graph keeps: only read while the window is shown."""
+        self._cpu_freq = _read("cpu frequency", cpu.get_cpu_freq, MISSING)
         self._disk_space = _read("disk space", disk.get_disk_space, self._disk_space)
         self._sensors = _read("sensors", sensors.get_sensors_info, self._sensors)
         # powerprofilesctl can switch the governor / EPP with the window open.
         self._cpu_policy = _read("cpu policy", cpu.get_cpu_policy, None)
-        self._read_gpu()
 
     def _read_gpu(self) -> None:
         if self._gpu_dir is None:
@@ -289,14 +316,14 @@ class Monitor(QObject):
 
     @Slot()
     def _sample(self) -> None:
+        # The graph sources run even while hidden, so an opening finds the
+        # last minute already drawn.
         if self._cpu_sample is not None:
             self._cpu_usage = _read("cpu usage", self._cpu_sample.get_cpu_usage, 0.0)
-        self._cpu_freq = _read("cpu frequency", cpu.get_cpu_freq, MISSING)
         if self._net_sample is not None:
             self._net = _read("network", self._net_sample.get_net_speed, network.NetSpeed(0.0, 0.0))
         self._read_levels()
         self._sample_disk_activity()
-        self._sample_processes()
 
         self._cpu_history.append(self._cpu_usage)
         self._mem_history.append(self._mem_percent())
@@ -304,6 +331,11 @@ class Monitor(QObject):
         self._up_history.append(self._net.upload)
         if self._gpu_dir is not None:
             self._gpu_history.append(self._gpu.busy_percentage if self._gpu else 0.0)
+
+        if not self._shown:
+            return
+        self._read_panel_values()
+        self._sample_processes()
         self.tick.emit()
 
     def _sample_disk_activity(self) -> None:
