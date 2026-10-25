@@ -98,7 +98,32 @@ def get_last_update() -> datetime | None:
     return last_update_date
 
 
+def parse_package_dir(dir_name: str) -> tuple[str, str]:
+    name, full_version, _pkgrel = dir_name.rsplit("-", 2)
+    _epoch, _, version = full_version.rpartition(":")
+    return name, version
+
+
+def get_package_version(package_name: str) -> str | None:
+    try:
+        package_dirs: list[str] = os.listdir(PACKAGE_LIST_PATH)
+    except OSError as error:
+        warnings.warn(f"Received {error} while trying to list pacman packages")
+        return None
+
+    for package_dir in package_dirs:
+        try:
+            name, version = parse_package_dir(package_dir)
+        except ValueError:
+            continue
+        if name == package_name:
+            return version
+
+    return None
+
+
 if __name__ == "__main__":
     print(try_read_total_packages())
     print(get_install_date())
     print(get_last_update())
+    print(get_package_version("mesa"))

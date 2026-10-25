@@ -10,6 +10,8 @@ GPU_DRIVER_DIRECTORY = "/sys/class/drm/card*/device/driver"
 HWMON_PREFIX = "hwmon/hwmon*/"
 AMD_GPU_IDS_PATH = "/usr/share/libdrm/amdgpu.ids"
 AMD_GPU = "amdgpu"
+LINK_SPEED_KEY = "max_link_speed"
+LINK_WIDTH_KEY = "max_link_width"
 GPU_BUSY_KEY = "gpu_busy_percent"
 VRAM_USED_KEY = "mem_info_vram_used"
 VRAM_TOTAL_KEY = "mem_info_vram_total"
@@ -21,6 +23,10 @@ GPU_MEMORY_LINE_IN_KERNEL_LOG = "RAM width"
 AMD_MEMORY_TYPES = {"DDR", "HBM"}
 REVISION_KEY = "revision"
 DEVICE_KEY = "device"
+PCI_VENDOR_KEY = "vendor"
+PCI_CLASS_KEY = "class"
+AMD_BRIDGE_VENDOR = "0x1002"
+AMD_BRIDGE_CLASS = "0x0604"
 
 
 @dataclass(frozen=True)
@@ -32,6 +38,18 @@ class GpuStats:
     clock: int | None
     power_average: int | None
     power_cap: int | None
+
+
+@dataclass(frozen=True)
+class PcieLink:
+    width: int
+    speed: float
+
+
+@dataclass(frozen=True)
+class GpuInterface:
+    link: PcieLink
+    card: PcieLink
 
 
 def read_kernel_log() -> subprocess.CompletedProcess[str]:
@@ -65,6 +83,37 @@ def find_gpu_dir() -> str | None:
 def read_value(gpu_info_path: str, key: str) -> str:
     with open(os.path.join(gpu_info_path, key), "r") as raw:
         return raw.read().strip()
+
+
+def is_amd_bridge(pci_dir: str) -> bool:
+    pci_vendor = read_value(pci_dir, PCI_VENDOR_KEY)
+    pci_class = read_value(pci_dir, PCI_CLASS_KEY)
+    return pci_vendor == AMD_BRIDGE_VENDOR and pci_class.startswith(AMD_BRIDGE_CLASS)
+
+
+def find_card_top_port(gpu_dir: str) -> str:
+    current = os.path.realpath(gpu_dir)
+    while is_amd_bridge(os.path.dirname(current)):
+        current = os.path.dirname(current)
+    return current
+
+
+def read_pcie_links_value(pci_path: str) -> PcieLink:
+    link_speed = parse_link_speed(read_value(pci_path, LINK_SPEED_KEY))
+    link_width = int(read_value(pci_path, LINK_WIDTH_KEY))
+    return PcieLink(width=link_width, speed=link_speed)
+
+
+def parse_link_speed(speed: str) -> float:
+    if not speed:
+        raise ValueError(f"Could not parse {speed!r} to a valid pcie speed")
+    return float(speed.split()[0])
+
+
+def find_min_pcie_link(board_pcie: PcieLink, card_pcie: PcieLink) -> PcieLink:
+    used_pcie_speed = min(board_pcie.speed, card_pcie.speed)
+    used_pcie_width = min(board_pcie.width, card_pcie.width)
+    return PcieLink(width=used_pcie_width, speed=used_pcie_speed)
 
 
 def find_hwmon_path(gpu_dir: str) -> str | None:
@@ -161,6 +210,20 @@ def get_vram_type() -> str | None:
     return vram_type
 
 
+def get_pcie_links(gpu_dir: str) -> GpuInterface | None:
+
+    try:
+        pci_path = find_card_top_port(gpu_dir)
+        card_pcie = read_pcie_links_value(pci_path)
+        board_pcie = read_pcie_links_value(os.path.dirname(pci_path))
+    except (ValueError, OSError) as error:
+        warnings.warn(f"Received {error} while trying to read and parse pcie links")
+        return None
+
+    link_pcie = find_min_pcie_link(board_pcie, card_pcie)
+    return GpuInterface(link=link_pcie, card=card_pcie)
+
+
 if __name__ == "__main__":
     gpu_dir = find_gpu_dir()
     if gpu_dir is not None:
@@ -168,3 +231,4 @@ if __name__ == "__main__":
         print(get_gpu_stats(gpu_dir, hwmon_path))
         print(get_gpu_name(gpu_dir))
         print(get_vram_type())
+        print(get_pcie_links(gpu_dir))
