@@ -135,6 +135,9 @@ QtObject {
 
     function hz(v) { return v < 0 ? missing : Math.round(v) + " Hz"; }
 
+    // Whole inches: EDID gives the size in whole cm, so a decimal would be noise.
+    function inches(v) { return v < 0 ? missing : Math.round(v) + "\""; }
+
     // "Apr 23, 2026" from milliseconds since the epoch.
     function date(ms) { return ms < 0 ? missing : new Date(ms).toLocaleString(dateLocale, "MMM d, yyyy"); }
 
