@@ -7,6 +7,7 @@ import "art.js" as Art
 PartRow {
     art: Art.gpu()
     artWidth: Config.artGpuWidth
+    bottomPad: Config.hwGpuBottomPad
 
     PartTitle {
         width: parent.width
@@ -23,8 +24,13 @@ PartRow {
     StatRow {
         width: parent.width
         stats: [
-            { "key": "Interface", "value": Format.notBuilt },
-            { "key": "Mesa", "value": Format.notBuilt },
+            {
+                "key": "Interface",
+                "value": Format.pcieLink(monitor.gpuLinkSpeed, monitor.gpuLinkWidth),
+                "note": Format.pcieCardNote(monitor.gpuLinkSpeed, monitor.gpuLinkWidth,
+                                            monitor.gpuCardSpeed, monitor.gpuCardWidth)
+            },
+            { "key": "Mesa", "value": Format.text(monitor.mesaVersion) },
             { "key": "Driver", "value": Format.text(monitor.gpuDriver) }
         ]
     }

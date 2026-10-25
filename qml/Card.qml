@@ -12,6 +12,8 @@ Rectangle {
     property int glyphSize: Config.iconSize
     // Drawn in the glyph cell instead of `glyph` when set (e.g. GpuIcon).
     property Component icon: null
+    // Space under the content; a card may tighten it (the Graphics row).
+    property int bottomPad: Config.cardPad
     default property alias content: body.data
     property alias headerLeft: extra.data
     property alias headerRight: controls.data
@@ -85,5 +87,6 @@ Rectangle {
         anchors.top: heading.visible ? heading.bottom : parent.top
         anchors.margins: Config.cardPad
         anchors.topMargin: heading.visible ? Config.titleGap : Config.cardPad
+        anchors.bottomMargin: root.bottomPad
     }
 }

@@ -145,6 +145,35 @@ QtObject {
         return connectorTypes[type] ?? text(type);
     }
 
+    // PCIe generation from its rate in GT/s: 8 -> "3.0". An unknown rate is
+    // shown in GT/s.
+    readonly property var pcieGenerations: ({
+        "2.5": "1.0",
+        "5": "2.0",
+        "8": "3.0",
+        "16": "4.0",
+        "32": "5.0",
+        "64": "6.0"
+    })
+
+    function pcieGen(gts) { return pcieGenerations[String(gts)] ?? gts + " GT/s"; }
+
+    // "PCIe 3.0 x16".
+    function pcieLink(gts, lanes) { return gts < 0 ? missing : "PCIe " + pcieGen(gts) + " x" + lanes; }
+
+    // What the card supports above its link, "" when the link is its own
+    // limit: "card: PCIe 4.0", "card: x16", "card: PCIe 4.0 x16".
+    function pcieCardNote(gts, lanes, cardGts, cardLanes) {
+        if (gts < 0)
+            return "";
+        const parts = [];
+        if (cardGts > gts)
+            parts.push("PCIe " + pcieGen(cardGts));
+        if (cardLanes > lanes)
+            parts.push("x" + cardLanes);
+        return parts.length ? "card: " + parts.join(" ") : "";
+    }
+
     // A value that is drawn dim: failed, or its collector is not written yet.
     function absent(s) { return s === missing || s === notBuilt; }
 

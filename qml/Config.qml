@@ -233,7 +233,8 @@ QtObject {
     readonly property int partSlotGap: 12
     readonly property int partPairLabelWidth: 90
     readonly property int hwCpuHeight: 136
-    readonly property int hwGpuHeight: 164
+    readonly property int hwGpuHeight: 163       // fits the identity column with the Interface note
+    readonly property int hwGpuBottomPad: 6      // the note sits close to the bottom border
     readonly property int hwMemoryHeight: 128
     readonly property int hwStorageHeight: 150
     readonly property int memorySlots: 4         // drawn until the memory collector says how many

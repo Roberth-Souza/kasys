@@ -3,7 +3,8 @@ import ".."
 
 // Stats side by side, split by vertical rules. Each cell gets its natural
 // width plus an equal share of what is left; when the row is too narrow the
-// cells shrink in proportion and elide. `stats` is a list of { key, value }.
+// cells shrink in proportion and elide. `stats` is a list of { key, value },
+// plus an optional `note` (see Stat).
 Item {
     id: root
 
@@ -26,7 +27,9 @@ Item {
         return natural > 0 ? naturalWidth * room / natural : 0;
     }
 
-    implicitHeight: Config.partKeyHeight + valueHeight
+    readonly property bool hasNote: stats.some(stat => (stat.note ?? "") !== "")
+
+    implicitHeight: Config.partKeyHeight + valueHeight + (hasNote ? Config.partKeyHeight : 0)
 
     Row {
         height: parent.height
@@ -59,6 +62,7 @@ Item {
                     width: root.cellWidth(naturalWidth)
                     key: modelData.key
                     value: modelData.value
+                    note: modelData.note ?? ""
                     valueSize: root.valueSize
                     valueHeight: root.valueHeight
                 }
