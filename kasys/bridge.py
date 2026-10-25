@@ -114,6 +114,48 @@ def _temperature_rows(chips: dict[str, list[sensors.Sensor]]) -> list[dict[str, 
     return [row for _, row in sorted(rows, key=lambda pair: pair[0])]
 
 
+class NetScale:
+    """Top of the network graph in bytes/s, kept steady against short bursts.
+
+    Traffic jumps from KiB/s to MiB/s in one second. Scaling to the peak of
+    the window lets a single burst flatten the rest of the minute, so the
+    scale only moves after RESCALE_TICKS readings in a row agree: above it
+    (grow) or under a tenth of it (shrink). A burst shorter than that is
+    clipped at the top instead.
+    """
+
+    FLOOR = 10 * 1024
+    RESCALE_TICKS = 5
+    GROW = 1.3
+    SHRINK = 3.0
+
+    def __init__(self) -> None:
+        self.top: float = self.FLOOR
+        self._over = 0
+        self._under = 0
+        self._recent: deque[float] = deque(maxlen=self.RESCALE_TICKS)
+
+    def update(self, speed: float) -> None:
+        self._recent.append(speed)
+        if speed > self.top:
+            self._over += 1
+            self._under = max(0, self._under - 1)
+        elif self.top > self.FLOOR and speed < self.top / 10:
+            self._under += 1
+            self._over = max(0, self._over - 1)
+
+        if self._over >= self.RESCALE_TICKS:
+            self._rescale(self.GROW)
+        elif self._under >= self.RESCALE_TICKS:
+            self._rescale(self.SHRINK)
+
+    def _rescale(self, headroom: float) -> None:
+        average = sum(self._recent) / len(self._recent)
+        self.top = max(average * headroom, self.FLOOR)
+        self._over = 0
+        self._under = 0
+
+
 class Overlay(QObject):
     """Whether the window is on screen, and what closing it means.
 
@@ -188,6 +230,8 @@ class Monitor(QObject):
         self._disk_activity_history: dict[str, deque[float]] = {}
         self._down_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
         self._up_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
+        # Download and upload share one graph, so one scale fits both.
+        self._net_scale = NetScale()
         self._gpu_history: deque[float] = deque(maxlen=HISTORY_LENGTH)
 
         # System info is read once per opening: at launch, and again by
@@ -329,6 +373,7 @@ class Monitor(QObject):
         self._mem_history.append(self._mem_percent())
         self._down_history.append(self._net.download)
         self._up_history.append(self._net.upload)
+        self._net_scale.update(max(self._net.download, self._net.upload))
         if self._gpu_dir is not None:
             self._gpu_history.append(self._gpu.busy_percentage if self._gpu else 0.0)
 
@@ -623,10 +668,15 @@ class Monitor(QObject):
     def _get_up_history(self) -> list[float]:
         return list(self._up_history)
 
+    def _get_net_scale(self) -> float:
+        return self._net_scale.top
+
     netDown = Property(float, _get_net_down, notify=tick)
     netUp = Property(float, _get_net_up, notify=tick)
     netDownHistory = Property(list, _get_down_history, notify=tick)
     netUpHistory = Property(list, _get_up_history, notify=tick)
+    # Top of the network graph (bytes/s); QML rounds it for the axis labels.
+    netScale = Property(float, _get_net_scale, notify=tick)
 
     # -- system info (read once per opening) ---------------------------------
     def _get_hostname(self) -> str:

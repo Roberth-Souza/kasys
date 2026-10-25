@@ -1,8 +1,8 @@
 import QtQuick
 import "."
 
-// Download (filled, bright) and upload (dim line) on one auto-scaled graph
-// that takes the whole card.
+// Download (filled, bright) and upload (dim line) on one graph that takes the
+// whole card. The bridge keeps the scale steady; short bursts are clipped.
 Card {
     title: "Network"
     glyph: Config.glyphNetwork
@@ -25,7 +25,7 @@ Card {
         anchors.fill: parent
         values: monitor.netDownHistory
         secondValues: monitor.netUpHistory
-        maxValue: 0
+        maxValue: Format.niceMax(monitor.netScale)
         labelWidth: Config.rateLabelWidth
         formatLabel: (v) => Format.rate(v)
     }
