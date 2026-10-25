@@ -218,6 +218,7 @@ class Monitor(QObject):
         self._gpu_hwmon: str | None = None
         self._gpu_name = ""
         self._gpu_vram_type = ""
+        self._gpu_interface: gpu.GpuInterface | None = None
         if self._gpu_dir is not None:
             gpu_dir = self._gpu_dir
             self._gpu_hwmon = gpu.find_hwmon_path(gpu_dir)
@@ -226,6 +227,10 @@ class Monitor(QObject):
             self._gpu_name = name.removeprefix("AMD ") if name else ""
             # From the boot's kernel log, which no later reading changes.
             self._gpu_vram_type = _read("vram type", gpu.get_vram_type, None) or ""
+            # Max rates of the slot and the card: hardware limits, fixed until a reboot.
+            self._gpu_interface = _read("pcie link", lambda: gpu.get_pcie_links(gpu_dir), None)
+        # Userspace driver (radeonsi + RADV); a pacman upgrade shows after a restart.
+        self._mesa_version = _read("mesa", lambda: pacman.get_package_version("mesa"), None) or ""
 
         # The avatar is resolved once at startup: changing it means a restart.
         avatar_path = _read("avatar", avatar.get_avatar_path, None)
@@ -394,6 +399,21 @@ class Monitor(QObject):
     def _get_gpu_vram_type(self) -> str:
         return self._gpu_vram_type
 
+    def _get_mesa_version(self) -> str:
+        return self._mesa_version
+
+    def _get_gpu_link_speed(self) -> float:
+        return self._gpu_interface.link.speed if self._gpu_interface else MISSING
+
+    def _get_gpu_link_width(self) -> int:
+        return self._gpu_interface.link.width if self._gpu_interface else MISSING
+
+    def _get_gpu_card_speed(self) -> float:
+        return self._gpu_interface.card.speed if self._gpu_interface else MISSING
+
+    def _get_gpu_card_width(self) -> int:
+        return self._gpu_interface.card.width if self._gpu_interface else MISSING
+
     def _get_gpu_usage(self) -> float:
         return self._gpu.busy_percentage if self._gpu else MISSING
 
@@ -439,6 +459,15 @@ class Monitor(QObject):
     gpuName = Property(str, _get_gpu_name, constant=True)
     # "GDDR6", "HBM", ... from the kernel log; "" when not found.
     gpuVramType = Property(str, _get_gpu_vram_type, constant=True)
+    # "26.2.5", epoch and pkgrel dropped; "" when mesa is not installed.
+    mesaVersion = Property(str, _get_mesa_version, constant=True)
+    # PCIe link the card runs at (GT/s, lanes): the lower max of card and slot.
+    # MISSING when the link could not be read.
+    gpuLinkSpeed = Property(float, _get_gpu_link_speed, constant=True)
+    gpuLinkWidth = Property(int, _get_gpu_link_width, constant=True)
+    # What the card alone supports, above the link when the slot holds it back.
+    gpuCardSpeed = Property(float, _get_gpu_card_speed, constant=True)
+    gpuCardWidth = Property(int, _get_gpu_card_width, constant=True)
     # 0..100, or MISSING without an amdgpu card.
     gpuUsage = Property(float, _get_gpu_usage, notify=tick)
     gpuHistory = Property(list, _get_gpu_history, notify=tick)
