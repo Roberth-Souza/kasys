@@ -11,6 +11,7 @@ the fallback value, so one broken source never takes the whole window down.
 
 from __future__ import annotations
 
+import math
 import re
 import sys
 from collections import deque
@@ -25,6 +26,7 @@ from kasys.collectors import (
     boot,
     cpu,
     disk,
+    display,
     gpu,
     host,
     mem,
@@ -45,6 +47,7 @@ TOP_PROCESSES = 12
 TOP_CPU_PROCESSES = 3
 # What a property reads when its source failed; QML draws it as "--".
 MISSING = -1
+CM_PER_INCH = 2.54
 # How often to ask systemd again while the boot is still running.
 BOOT_RETRY_MS = 5000
 
@@ -745,6 +748,14 @@ class Monitor(QObject):
             if screen.name() == screen_name:
                 return screen.refreshRate()
         return MISSING
+
+    @Slot(str, result=float)
+    def monitorDiagonal(self, screen_name: str) -> float:
+        """Inches of the named screen from its EDID size (whole cm), or MISSING."""
+        size = display.get_monitor_size(screen_name)
+        if size is None:
+            return MISSING
+        return math.hypot(*size) / CM_PER_INCH
 
     def _get_avatar_url(self) -> str:
         return self._avatar_url
