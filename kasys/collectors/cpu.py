@@ -3,12 +3,17 @@ Collects data from the CPU
 """
 
 import glob
+import os
 import re
 import time
 import warnings
 from dataclasses import dataclass
 
 PROC_STAT = "/proc/stat"
+CPU_POLICY_PATH = "/sys/devices/system/cpu/cpufreq/policy0"
+SCALING_DRIVER_KEY = "scaling_driver"
+SCALING_GOVERNOR_KEY = "scaling_governor"
+ENERGY_PERFORMANCE_KEY = "energy_performance_preference"
 PROC_CPU_INFO = "/proc/cpuinfo"
 CPU_FILES = "/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq"
 IDLE_POSITION = 3
@@ -34,6 +39,13 @@ class CpuInfo:
     threads: int | None
 
 
+@dataclass(frozen=True)
+class CpuPolicy:
+    driver: str | None
+    governor: str | None
+    epp: str | None  # Energy performance preference
+
+
 class CpuSample:
     def __init__(self) -> None:
         self.previous_sample: CpuTimes = calc_proc_sum(parse_stat(read_stat_proc()))
@@ -49,6 +61,22 @@ def read_stat_proc() -> str:
     with open(PROC_STAT, "r") as proc:
         cpu_stats = proc.read()
         return cpu_stats
+
+
+def read_cpu_policy(key: str) -> str:
+    with open(os.path.join(CPU_POLICY_PATH, key), "r") as raw:
+        return raw.read().strip()
+
+
+def try_read_cpu_policy(key: str) -> str | None:
+    try:
+        result = read_cpu_policy(key)
+    except (FileNotFoundError, OSError) as error:
+        if key == ENERGY_PERFORMANCE_KEY:
+            return None
+        warnings.warn(f"Could not read {key}: {error}")
+        return None
+    return result
 
 
 def parse_stat(cpu_stats: str) -> list[int]:
@@ -110,8 +138,8 @@ def read_cpu_frequencies() -> list[int]:
     return cpu_frequencies
 
 
-def calc_frequency(cpu_frequencies: list[int]) -> int:
-    return sum(cpu_frequencies) // len(cpu_frequencies)
+def highest_frequency(cpu_frequencies: list[int]) -> int:
+    return max(cpu_frequencies)
 
 
 def get_cpu_info() -> CpuInfo:
@@ -133,12 +161,20 @@ def get_cpu_info() -> CpuInfo:
 
 def get_cpu_freq() -> int:
     cpu_frequencies = read_cpu_frequencies()
-    frequency = calc_frequency(cpu_frequencies)
+    frequency = highest_frequency(cpu_frequencies)
     return frequency
+
+
+def get_cpu_policy() -> CpuPolicy:
+    driver = try_read_cpu_policy(SCALING_DRIVER_KEY)
+    governor = try_read_cpu_policy(SCALING_GOVERNOR_KEY)
+    epp = try_read_cpu_policy(ENERGY_PERFORMANCE_KEY)
+    return CpuPolicy(driver=driver, governor=governor, epp=epp)
 
 
 if __name__ == "__main__":
     print(get_cpu_info())
+    print(get_cpu_policy())
     sampler = CpuSample()
     while True:
         print(f"frequencia da CPU: {get_cpu_freq()}")
