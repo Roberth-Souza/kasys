@@ -66,6 +66,21 @@ QtObject {
 
     function ghz(kHz) { return kHz < 0 ? missing : (kHz / 1e6).toFixed(2) + " GHz"; }
 
+    // EPP values to power-profiles-daemon's names; others (balance_power,
+    // default) stay raw.
+    readonly property var eppNames: ({
+        "performance": "Performance",
+        "balance_performance": "Balanced",
+        "power": "Power saver"
+    })
+
+    // The EPP when the driver has one, else the governor, capitalized.
+    function powerProfile(governor, epp) {
+        if (epp !== "")
+            return eppNames[epp] ?? epp;
+        return governor === "" ? missing : governor[0].toUpperCase() + governor.slice(1);
+    }
+
     // "3d 4h", "2h 34m" or "34m": short enough for the big System card digits.
     function uptime(seconds) {
         if (seconds < 0)

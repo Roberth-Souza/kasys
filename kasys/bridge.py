@@ -190,6 +190,7 @@ class Monitor(QObject):
         self._install_date: datetime | None = None
         self._last_update: datetime | None = None
         self._recent_boots: list[float] = []
+        self._cpu_policy: cpu.CpuPolicy | None = None
         self.read_system_info()
 
         # Model and core counts never change while running: read once.
@@ -273,6 +274,8 @@ class Monitor(QObject):
         self._mem = _read("memory", mem.get_mem_info, self._mem)
         self._disk_space = _read("disk space", disk.get_disk_space, self._disk_space)
         self._sensors = _read("sensors", sensors.get_sensors_info, self._sensors)
+        # powerprofilesctl can switch the governor / EPP with the window open.
+        self._cpu_policy = _read("cpu policy", cpu.get_cpu_policy, None)
         self._read_gpu()
 
     def _read_gpu(self) -> None:
@@ -377,6 +380,18 @@ class Monitor(QObject):
     def _get_top_cpu_processes(self) -> list[dict[str, object]]:
         return [{"name": process.name, "cpu": process.cpu_percent} for process in self._top_cpu_processes]
 
+    def _get_cpu_driver(self) -> str:
+        policy = self._cpu_policy
+        return policy.driver if policy and policy.driver is not None else ""
+
+    def _get_cpu_governor(self) -> str:
+        policy = self._cpu_policy
+        return policy.governor if policy and policy.governor is not None else ""
+
+    def _get_cpu_epp(self) -> str:
+        policy = self._cpu_policy
+        return policy.epp if policy and policy.epp is not None else ""
+
     cpuUsage = Property(float, _get_cpu_usage, notify=tick)
     # kHz, or MISSING when cpufreq is not exposed.
     cpuFreq = Property(int, _get_cpu_freq, notify=tick)
@@ -391,6 +406,11 @@ class Monitor(QObject):
     cpuTemp = Property(float, _get_cpu_temp, notify=tick)
     # Up to TOP_CPU_PROCESSES dicts, busiest first: name and cpu (0..100).
     topCpuProcesses = Property(list, _get_top_cpu_processes, notify=tick)
+    # cpufreq policy0, re-read every tick: "" when absent (epp: driver
+    # without EPP).
+    cpuDriver = Property(str, _get_cpu_driver, notify=tick)
+    cpuGovernor = Property(str, _get_cpu_governor, notify=tick)
+    cpuEpp = Property(str, _get_cpu_epp, notify=tick)
 
     # -- GPU ---------------------------------------------------------------
     def _get_gpu_name(self) -> str:

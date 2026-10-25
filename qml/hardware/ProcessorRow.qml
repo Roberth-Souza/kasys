@@ -2,7 +2,8 @@ import QtQuick
 import ".."
 import "art.js" as Art
 
-// Model and core counts beside the chip, the package temperature live.
+// Model, core counts, clock driver and power profile beside the chip, the
+// package temperature and highest clock live.
 PartRow {
     id: root
 
@@ -33,15 +34,18 @@ PartRow {
                 "value": monitor.cpuCores < 0 || monitor.cpuThreads < 0
                          ? Format.missing : monitor.cpuCores + " / " + monitor.cpuThreads
             },
-            { "key": "L3 cache", "value": Format.notBuilt }
+            { "key": "Clock driver", "value": Format.text(monitor.cpuDriver) },
+            { "key": "Power profile", "value": Format.powerProfile(monitor.cpuGovernor, monitor.cpuEpp) }
         ]
     }
 
-    live: Stat {
+    live: StatRow {
         width: parent.width
-        key: "CPU temperature"
-        value: Format.celsius(monitor.cpuTemp)
         valueSize: Config.fontSizeHuge
         valueHeight: Config.bigValueHeight
+        stats: [
+            { "key": "CPU temperature", "value": Format.celsius(monitor.cpuTemp) },
+            { "key": "Clock", "value": Format.ghz(monitor.cpuFreq) }
+        ]
     }
 }
