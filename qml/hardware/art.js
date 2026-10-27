@@ -80,13 +80,14 @@ function gpu() {
 
 function ram() {
     const s = [];
-    // PCB with side notches, key notch and gold fingers.
-    s.push(path("M6,20 H294 V36 H290 V44 H294 V82 H170 V76 H164 V82 H6 V44 H10 V36 H6 Z"));
+    // PCB with side notches, key notch and gold fingers; only the parts the
+    // heatsink leaves visible (its sides and the strip below).
+    s.push(path("M14,30 H6 V36 H10 V44 H6 V82 H164 V76 H170 V82 H294 V44 H290 V36 H294 V30 H286"));
     for (let x = 12; x < 289; x += 2.4) {
         if (x < 162 || x > 172)
             s.push(path("M" + x.toFixed(1) + ",74 L" + x.toFixed(1) + ",80", true));
     }
-    s.push(circle(13, 67, 2.5), circle(287, 67, 2.5));
+    s.push(circle(10, 70, 2), circle(290, 70, 2));
     // Heatsink: raised ends, centre panel, diagonal fins.
     s.push(path("M14,26 L24,12 L62,12 L70,20 L112,20 L120,26 L180,26 L188,20 L230,20 L238,12 L276,12 L286,26 L286,66 L14,66 Z"));
     const edge = "M20,28 L28,17 L60,17 L66,24";
