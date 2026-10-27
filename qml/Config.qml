@@ -237,7 +237,6 @@ QtObject {
     readonly property int hwGpuBottomPad: 6      // the note sits close to the bottom border
     readonly property int hwMemoryHeight: 128
     readonly property int hwStorageHeight: 150
-    readonly property int memorySlots: 4         // drawn until the memory collector says how many
 
     // System card: the avatar takes whatever height the text leaves.
     readonly property int avatarGlyphSize: 64

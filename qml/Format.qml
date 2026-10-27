@@ -66,6 +66,12 @@ QtObject {
 
     function ghz(kHz) { return kHz < 0 ? missing : (kHz / 1e6).toFixed(2) + " GHz"; }
 
+    function mts(v) { return v < 0 ? missing : v + " MT/s"; }
+
+    // Memory channels with a stick: 2 -> "Dual channel".
+    readonly property var channelNames: ({ "1": "Single channel", "2": "Dual channel", "4": "Quad channel" })
+    function channels(n) { return n < 0 ? missing : channelNames[String(n)] ?? n + " channels"; }
+
     // EPP values to power-profiles-daemon's names; others (balance_power,
     // default) stay raw.
     readonly property var eppNames: ({
