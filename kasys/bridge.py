@@ -250,6 +250,8 @@ class Monitor(QObject):
         self._host: host.HostInfo | None = _read("host info", host.get_host_info, None)
         # BIOS and board only change after a flash and a reboot: read once.
         self._board: motherboard.BoardInfo | None = _read("motherboard", motherboard.get_motherboard_info, None)
+        # Sticks only change with the machine off: read once.
+        self._memory: mem.MemoryLayout | None = _read("memory layout", mem.get_memory_layout, None)
         # The desktop session outlives the app: read once.
         self._session: session.SessionInfo | None = _read("session info", session.get_session_info, None)
 
@@ -788,6 +790,52 @@ class Monitor(QObject):
     biosVersion = Property(str, _get_bios_version, constant=True)
     # ms since the epoch (a date, no time), or MISSING.
     biosDate = Property(float, _get_bios_date, constant=True)
+
+    # -- memory modules (read once at startup) --------------------------------
+    def _memory_modules(self) -> list[mem.MemoryModule]:
+        """The populated slots, in slot order."""
+        if self._memory is None:
+            return []
+        return [module for module in self._memory.slots if module is not None]
+
+    def _get_memory_installed(self) -> float:
+        modules = self._memory_modules()
+        return float(sum(module.size for module in modules)) if modules else MISSING
+
+    # Mixed sticks are not handled: the first one speaks for all.
+    def _get_memory_type(self) -> str:
+        modules = self._memory_modules()
+        return modules[0].type if modules and modules[0].type is not None else ""
+
+    def _get_memory_speed(self) -> int:
+        modules = self._memory_modules()
+        return modules[0].speed if modules and modules[0].speed is not None else MISSING
+
+    def _get_memory_channels(self) -> int:
+        channels = [module.channel for module in self._memory_modules()]
+        # One stick of unknown channel and the count would be a guess.
+        if not channels or None in channels:
+            return MISSING
+        return len(set(channels))
+
+    def _get_memory_slots(self) -> list[dict[str, object]]:
+        if self._memory is None:
+            return []
+        return [
+            {"populated": module is not None, "size": float(module.size) if module else MISSING}
+            for module in self._memory.slots
+        ]
+
+    # Sum of the sticks in bytes (not MemTotal, which the kernel trims), or MISSING.
+    memoryInstalled = Property(float, _get_memory_installed, constant=True)
+    # "DDR4", or "" when unknown.
+    memoryType = Property(str, _get_memory_type, constant=True)
+    # MT/s the sticks run at, or MISSING.
+    memorySpeed = Property(int, _get_memory_speed, constant=True)
+    # Distinct channels with a stick, or MISSING when any stick's channel is unknown.
+    memoryChannels = Property(int, _get_memory_channels, constant=True)
+    # One dict per slot in board order: populated and size (bytes, MISSING if empty).
+    memorySlots = Property(list, _get_memory_slots, constant=True)
 
     # -- session info (read once at startup) ----------------------------------
     def _get_desktop(self) -> str:
