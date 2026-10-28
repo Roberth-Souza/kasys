@@ -103,9 +103,9 @@ def try_read_udevadm() -> str | None:
 def parse_udevadm_fields(udevadm: str) -> dict[str, str]:
     parsed_udevadm: dict[str, str] = {}
     for line in udevadm.splitlines():
-        # TODO: a line without "=" raises IndexError below; skip it instead.
-        parsed_line = line.split("=", 1)
-        field, value = parsed_line[0], parsed_line[1]
+        field, separator, value = line.partition("=")
+        if not separator:
+            continue
         parsed_udevadm[field] = value
 
     return parsed_udevadm
