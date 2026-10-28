@@ -6,11 +6,16 @@ import time
 import warnings
 from dataclasses import dataclass
 
+SYS_BLOCK_PREFIX = "/sys/block/"
 SYS_BLOCK_DEVICES = "/sys/block/*/device"
 SYS_CLASS_BLOCK = "/sys/class/block"
 PROC_DISKSTATS = "/proc/diskstats"
 PROC_MOUNTS = "/proc/self/mounts"
 DEV_PREFIX = "/dev/"
+BYTES_PER_SECTOR = 512  # /sys/block/*/size unit
+DISK_MODEL = "device/model"
+DISK_SIZE = "size"
+DISK_ROTATIONAL = "queue/rotational"
 DISK_NAME_IN_SYS = 3
 DISK_NAME_IN_PROC = 2
 IO_TICKS_POSITION = 12
@@ -23,6 +28,14 @@ class DiskInfo:
     total: int
     used: int
     available: int
+
+
+@dataclass(frozen=True)
+class DiskIdentity:
+    model: str | None
+    size: int | None  # bytes
+    rotational: bool | None  # True = HD
+    nvme: bool
 
 
 class DiskSample:
@@ -92,6 +105,47 @@ def read_disk_mounts() -> str:
     with open(PROC_MOUNTS, "r") as raw:
         raw_mount_proc = raw.read()
     return raw_mount_proc
+
+
+def read_disk_field(disk_name: str, field: str) -> str:
+    with open(os.path.join(SYS_BLOCK_PREFIX, disk_name, field), "r") as raw:
+        return raw.read().strip()
+
+
+def try_read_disk_field(disk_name: str, field: str) -> str | None:
+    try:
+        value = read_disk_field(disk_name, field)
+    except OSError as error:
+        warnings.warn(f"Received {error} while trying to read {field} of {disk_name}")
+        return None
+
+    if not value:
+        return None
+    return value
+
+
+def parse_disk_size(raw_size: str | None) -> int | None:
+    if raw_size is None:
+        return None
+    try:
+        size = int(raw_size) * BYTES_PER_SECTOR
+    except ValueError:
+        warnings.warn(f"Could not parse disk size, {raw_size!r} is not a number")
+        return None
+    return size
+
+
+def parse_rotational(raw_rotational: str | None) -> bool | None:
+    if raw_rotational is None:
+        return None
+    if raw_rotational == "1":
+        rotational = True
+    elif raw_rotational == "0":
+        rotational = False
+    else:
+        warnings.warn(f"Could not parse rotational, {raw_rotational!r} is not 0 or 1")
+        rotational = None
+    return rotational
 
 
 def decode_mount_path(disk_partition_folder: str) -> str:
@@ -178,9 +232,26 @@ def get_disk_space() -> dict[str, DiskInfo]:
     return largest_partition_disk_space
 
 
+def get_disk_identity() -> dict[str, DiskIdentity]:
+    disks: dict[str, DiskIdentity] = {}
+    disk_names = parse_disk_names(read_disk_paths())
+    for disk_name in disk_names:
+        disk_model = try_read_disk_field(disk_name, DISK_MODEL)
+        raw_disk_size = try_read_disk_field(disk_name, DISK_SIZE)
+        disk_size = parse_disk_size(raw_disk_size)
+        raw_disk_rotational = try_read_disk_field(disk_name, DISK_ROTATIONAL)
+        disk_rotational = parse_rotational(raw_disk_rotational)
+        disk_is_nvme = disk_name.startswith("nvme")
+
+        disks[disk_name] = DiskIdentity(model=disk_model, size=disk_size, rotational=disk_rotational, nvme=disk_is_nvme)
+
+    return disks
+
+
 if __name__ == "__main__":
     print(get_disk_space())
     sampler = DiskSample()
+    print(get_disk_identity())
     while True:
         time.sleep(1)
         print(sampler.get_disk_activity())
