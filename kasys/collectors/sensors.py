@@ -7,7 +7,7 @@ import warnings
 from dataclasses import dataclass
 
 SYS_HWMON_CHIPS = "/sys/class/hwmon/hwmon*"
-SYS_HWMON_PREFIX = "/sys/block/"
+SYS_BLOCK = "/sys/block/"
 SYS_HWMON_SUFFIX = "/device/hwmon"
 
 
@@ -18,8 +18,8 @@ class Sensor:
 
 
 def find_disk_hwmon(disk_name: str) -> list[str]:
-    nvme_folders: list[str] = glob.glob(f"{SYS_HWMON_PREFIX}{disk_name}{SYS_HWMON_SUFFIX}[0-9]*")
-    sata_folders: list[str] = glob.glob(f"{SYS_HWMON_PREFIX}{disk_name}{SYS_HWMON_SUFFIX}/hwmon[0-9]*")
+    nvme_folders: list[str] = glob.glob(f"{SYS_BLOCK}{disk_name}{SYS_HWMON_SUFFIX}[0-9]*")
+    sata_folders: list[str] = glob.glob(f"{SYS_BLOCK}{disk_name}{SYS_HWMON_SUFFIX}/hwmon[0-9]*")
     return sata_folders + nvme_folders
 
 
