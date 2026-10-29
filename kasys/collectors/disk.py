@@ -21,6 +21,7 @@ DISK_NAME_IN_PROC = 2
 IO_TICKS_POSITION = 12
 DISK_PARTITION_NAME = 0
 DISK_PARTITION_FOLDER = 1
+ROOT_MOUNT = "/"
 
 
 @dataclass(frozen=True)
@@ -169,6 +170,19 @@ def parse_disk_mounts(raw_mount_proc: str) -> dict[str, str]:
     return raw_partitions
 
 
+def parse_root_partition(raw_mount_proc: str) -> str | None:
+    """Partition mounted at /. Searched by mount point, not by partition:
+    btrfs mounts one partition many times (/, /home, ...), so a partition's
+    mounts say nothing about which one is the root."""
+    root_partition: str | None = None
+    for fields in (line.split() for line in raw_mount_proc.splitlines()):
+        device = fields[DISK_PARTITION_NAME]
+        if device.startswith(DEV_PREFIX) and fields[DISK_PARTITION_FOLDER] == ROOT_MOUNT:
+            # A later mount on / hides the earlier ones: keep the last.
+            root_partition = os.path.basename(device)
+    return root_partition
+
+
 def map_partitions_to_disks(partitions: dict[str, str], disk_names: list[str]) -> dict[str, str]:
     result: dict[str, str] = {}
     for partition in partitions:
@@ -232,6 +246,22 @@ def get_disk_space() -> dict[str, DiskInfo]:
     return largest_partition_disk_space
 
 
+def get_root_disk() -> str | None:
+    """Disk holding /, the Storage row's default. None when / is not on a
+    plain partition (LUKS/LVM `dm-*`, `/dev/root`, a container)."""
+    root_partition = parse_root_partition(read_disk_mounts())
+    if root_partition is None:
+        warnings.warn(f"Could not find a partition mounted at / in {PROC_MOUNTS}")
+        return None
+
+    disk_names = parse_disk_names(read_disk_paths())
+    mapped = map_partitions_to_disks({root_partition: ROOT_MOUNT}, disk_names)
+    root_disk = mapped.get(root_partition)
+    if root_disk is None:
+        warnings.warn(f"Could not find the disk of {root_partition}, mounted at /")
+    return root_disk
+
+
 def get_disk_identity() -> dict[str, DiskIdentity]:
     disks: dict[str, DiskIdentity] = {}
     disk_names = parse_disk_names(read_disk_paths())
@@ -252,6 +282,7 @@ if __name__ == "__main__":
     print(get_disk_space())
     sampler = DiskSample()
     print(get_disk_identity())
+    print(get_root_disk())
     while True:
         time.sleep(1)
         print(sampler.get_disk_activity())

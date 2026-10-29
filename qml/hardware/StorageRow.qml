@@ -5,12 +5,21 @@ import "art.js" as Art
 // The disk holding /: model, size and usage beside the drive, SMART on the
 // right.
 PartRow {
+    id: root
+
+    readonly property var detail: [Format.bytes(monitor.diskSize), Format.text(monitor.diskKind)]
+        .filter(part => part !== Format.missing)
+
     art: Art.nvme()
     artWidth: Config.artNvmeWidth
 
     PartTitle {
         width: parent.width
         title: "Storage"
+        name: Format.text(monitor.diskModel)
+        // PCIe link and filesystem have no collector yet.
+        detail: root.detail.join(" · ")
+        detailPending: true
     }
 
     Item {

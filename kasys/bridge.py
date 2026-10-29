@@ -242,10 +242,15 @@ class Monitor(QObject):
         self._last_update: datetime | None = None
         self._recent_boots: list[float] = []
         self._cpu_policy: cpu.CpuPolicy | None = None
-        # Disks never change while running. SMART is NVMe only, and the Storage
-        # row has no disk selector yet: the first NVMe speaks for the row.
+        # Disks never change while running. The Storage row has no selector
+        # yet: it shows the disk holding /, else the first disk by name.
         identities = _read("disk identity", disk.get_disk_identity, {})
-        self._smart_disk: str | None = next((name for name in sorted(identities) if identities[name].nvme), None)
+        root_disk = _read("root disk", disk.get_root_disk, None)
+        self._storage_disk: str | None = root_disk if root_disk in identities else min(identities, default=None)
+        # SMART is NVMe only for now: a SATA disk gets no reading at all.
+        self._storage_identity: disk.DiskIdentity | None = identities.get(self._storage_disk or "")
+        storage_nvme = self._storage_identity is not None and self._storage_identity.nvme
+        self._smart_disk: str | None = self._storage_disk if storage_nvme else None
         self._smart: udisks.NvmeSmart | None = None
         self._disk_temp: float | None = None
         self.read_system_info()
@@ -362,9 +367,9 @@ class Monitor(QObject):
         self._cpu_freq = _read("cpu frequency", cpu.get_cpu_freq, MISSING)
         self._disk_space = _read("disk space", disk.get_disk_space, self._disk_space)
         self._sensors = _read("sensors", sensors.get_sensors_info, self._sensors)
-        smart_disk = self._smart_disk
-        if smart_disk is not None:
-            self._disk_temp = _read("disk temperature", lambda: sensors.get_disk_temperature(smart_disk), None)
+        storage_disk = self._storage_disk
+        if storage_disk is not None:
+            self._disk_temp = _read("disk temperature", lambda: sensors.get_disk_temperature(storage_disk), None)
         # powerprofilesctl can switch the governor / EPP with the window open.
         self._cpu_policy = _read("cpu policy", cpu.get_cpu_policy, None)
 
@@ -745,6 +750,33 @@ class Monitor(QObject):
 
     # Total seconds of the last startups, oldest first; [] when unknown.
     recentBoots = Property(list, _get_recent_boots, notify=systemInfoChanged)
+
+    # -- storage disk identity (read once at startup) --------------------------
+    def _get_disk_model(self) -> str:
+        identity = self._storage_identity
+        return identity.model if identity and identity.model is not None else ""
+
+    def _get_disk_size(self) -> float:
+        identity = self._storage_identity
+        return float(identity.size) if identity and identity.size is not None else MISSING
+
+    def _get_disk_kind(self) -> str:
+        identity = self._storage_identity
+        if identity is None:
+            return ""
+        # Not "SATA" for the rest: USB and SAS disks land there too.
+        if identity.nvme:
+            return "NVMe"
+        if identity.rotational is None:
+            return ""
+        return "HDD" if identity.rotational else "SSD"
+
+    # Model of the disk the Storage row shows; SATA models are cut at 16 chars.
+    diskModel = Property(str, _get_disk_model, constant=True)
+    # Bytes, float like the other sizes.
+    diskSize = Property(float, _get_disk_size, constant=True)
+    # "NVMe", "HDD", "SSD", or "" when unknown.
+    diskKind = Property(str, _get_disk_kind, constant=True)
 
     # -- NVMe SMART (read every window opening) --------------------------------
     def _get_disk_health(self) -> str:
