@@ -109,16 +109,18 @@ def _disk_kind(identity: disk.DiskIdentity) -> str:
     return "HDD" if identity.rotational else "SSD"
 
 
+def _smart_signals(smart: udisks.NvmeSmart | udisks.AtaSmart) -> tuple[bool | None, int | None]:
+    """The drive's own alarm and its damaged blocks, the same two for NVMe and ATA."""
+    if isinstance(smart, udisks.NvmeSmart):
+        alarm = None if smart.critical_warnings is None else bool(smart.critical_warnings)
+        return alarm, smart.media_errors
+    return smart.failing, smart.bad_sectors
+
+
 def _disk_health(smart: udisks.NvmeSmart | udisks.AtaSmart | None) -> str:
     if smart is None:
         return ""
-    # Same rule for both: the drive's own alarm, then damaged blocks.
-    if isinstance(smart, udisks.NvmeSmart):
-        alarm = None if smart.critical_warnings is None else bool(smart.critical_warnings)
-        errors = smart.media_errors
-    else:
-        alarm = smart.failing
-        errors = smart.bad_sectors
+    alarm, errors = _smart_signals(smart)
     # A known problem is a warning even when the other half is unknown.
     if alarm or (errors or 0) > 0:
         return "Warning"
@@ -789,6 +791,7 @@ class Monitor(QObject):
             nvme_smart = smart if isinstance(smart, udisks.NvmeSmart) else None
             temp = self._disk_temps.get(name)
             space = self._disk_space.get(name)
+            alarm, errors = _smart_signals(smart) if smart else (None, None)
             rows.append(
                 {
                     "name": name,
@@ -797,6 +800,10 @@ class Monitor(QObject):
                     "kind": _disk_kind(identity),
                     "temp": temp if temp is not None else MISSING,
                     "health": _disk_health(smart),
+                    "smart": smart is not None,
+                    "smartAlarm": MISSING if alarm is None else int(alarm),
+                    "smartWarnings": ", ".join(nvme_smart.critical_warnings or []) if nvme_smart else "",
+                    "smartErrors": _float_or_missing(errors),
                     "lifespanUsed": _float_or_missing(nvme_smart.percent_used if nvme_smart else None),
                     "written": _float_or_missing(nvme_smart.bytes_written if nvme_smart else None),
                     "powerOnHours": _float_or_missing(smart.power_on_hours if smart else None),
@@ -813,8 +820,11 @@ class Monitor(QObject):
 
     # One dict per disk, sorted by name. model ("" unknown; SATA cut at 16
     # chars), size (bytes), kind ("NVMe", "HDD", "SSD" or ""), temp (°C);
-    # SMART: health ("Healthy", "Warning", ""), powerOnHours; NVMe only:
-    # lifespanUsed (%, may pass 100), written (bytes). Largest mounted
+    # SMART: health ("Healthy", "Warning", ""), powerOnHours, and the raw
+    # signals behind health for the copied specs: smart (read at all),
+    # smartAlarm (1 / 0: NVMe critical warning or ATA failing), smartWarnings
+    # (NVMe warning names, "spare, temperature"), smartErrors (media errors /
+    # bad sectors); NVMe only: lifespanUsed (%, may pass 100), written (bytes). Largest mounted
     # partition, like `disks`: fstype ("" unmounted), used / available
     # (bytes), percent. Numbers are MISSING when unknown.
     storageDisks = Property(list, _get_storage_disks, notify=tick)
@@ -967,6 +977,11 @@ class Monitor(QObject):
             if screen.name() == screen_name:
                 return screen.refreshRate()
         return MISSING
+
+    @Slot(str)
+    def copyToClipboard(self, text: str) -> None:
+        """The copy buttons' text; on Wayland it stays pasteable while kasys runs."""
+        QGuiApplication.clipboard().setText(text)
 
     @Slot(str, result=float)
     def monitorDiagonal(self, screen_name: str) -> float:

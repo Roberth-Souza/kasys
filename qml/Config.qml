@@ -61,6 +61,8 @@ QtObject {
     readonly property string glyphDown: "\u{F01DA}"         // md-download
     readonly property string glyphUp: "\u{F0552}"           // md-upload
     readonly property string glyphChevronDown: "\u{F0140}"  // md-chevron_down
+    readonly property string glyphCopy: "\u{F018F}"         // md-content_copy
+    readonly property string glyphCheck: "\u{F012C}"        // md-check
     // System page cards.
     readonly property string glyphUptime: "\u{F0150}"       // md-clock_outline
     readonly property string glyphLastUpdate: "\u{F06B0}"   // md-update
@@ -233,12 +235,16 @@ QtObject {
     readonly property int partBarGap: 6
     readonly property int partSlotHeight: 20
     readonly property int partSlotGap: 12
-    readonly property int partPairLabelWidth: 90
+    readonly property int partPairLabelWidth: 72   // "Boot mode" + gap
     readonly property int hwCpuHeight: 136
     readonly property int hwGpuHeight: 163       // fits the identity column with the Interface note
     readonly property int hwGpuBottomPad: 6      // the note sits close to the bottom border
     readonly property int hwMemoryHeight: 128
     readonly property int hwStorageHeight: 150
+    // "Copy hardware specs", bottom right of the Display card.
+    readonly property int buttonHeight: 28
+    readonly property int buttonPadX: 12
+    readonly property int copiedMs: 2000        // how long "Copied" stays
 
     // System card: the avatar takes whatever height the text leaves.
     readonly property int avatarGlyphSize: 64
