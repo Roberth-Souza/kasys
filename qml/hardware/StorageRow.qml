@@ -31,7 +31,7 @@ PartRow {
             valueHeight: Config.partMidHeight
             stats: [
                 { "key": "Temperature", "value": Format.notBuilt },
-                { "key": "Health", "value": Format.notBuilt }
+                { "key": "Health", "value": Format.text(monitor.diskHealth) }
             ]
         },
         PartRule {
@@ -40,9 +40,9 @@ PartRow {
         StatRow {
             width: parent.width
             stats: [
-                { "key": "Lifespan used", "value": Format.notBuilt },
-                { "key": "Total written", "value": Format.notBuilt },
-                { "key": "Powered on", "value": Format.notBuilt }
+                { "key": "Lifespan used", "value": Format.percent(monitor.diskLifespanUsed) },
+                { "key": "Total written", "value": Format.bytes(monitor.diskWritten) },
+                { "key": "Powered on", "value": Format.hours(monitor.diskPowerOnHours) }
             ]
         }
     ]

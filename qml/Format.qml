@@ -116,6 +116,8 @@ QtObject {
 
     function days(n) { return n < 0 ? missing : n + (n === 1 ? " day" : " days"); }
 
+    function hours(n) { return n < 0 ? missing : n.toLocaleString(dateLocale, "f", 0) + " h"; }
+
     function text(s) { return s === "" ? missing : s; }
 
     // Raw collector value ("wayland" / "x11") to its display name.

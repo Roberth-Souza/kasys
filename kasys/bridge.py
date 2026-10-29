@@ -36,6 +36,7 @@ from kasys.collectors import (
     processes,
     sensors,
     session,
+    udisks,
 )
 
 TICK_MS = 1000
@@ -241,6 +242,11 @@ class Monitor(QObject):
         self._last_update: datetime | None = None
         self._recent_boots: list[float] = []
         self._cpu_policy: cpu.CpuPolicy | None = None
+        # Disks never change while running. SMART is NVMe only, and the Storage
+        # row has no disk selector yet: the first NVMe speaks for the row.
+        identities = _read("disk identity", disk.get_disk_identity, {})
+        self._smart_disk: str | None = next((name for name in sorted(identities) if identities[name].nvme), None)
+        self._smart: udisks.NvmeSmart | None = None
         self.read_system_info()
 
         # Model and core counts never change while running: read once.
@@ -307,6 +313,10 @@ class Monitor(QObject):
         # The journal only gains this boot once systemd is done: an opening
         # after that picks it up.
         self._recent_boots = _read("recent boots", boot.get_recent_boots, None) or []
+        # Hours and bytes written grow while the daemon runs: re-read per opening.
+        smart_disk = self._smart_disk
+        if smart_disk is not None:
+            self._smart = _read("nvme smart", lambda: udisks.get_nvme_smart(smart_disk), None)
         self.systemInfoChanged.emit()
 
     @Slot(result=bool)
@@ -731,6 +741,38 @@ class Monitor(QObject):
 
     # Total seconds of the last startups, oldest first; [] when unknown.
     recentBoots = Property(list, _get_recent_boots, notify=systemInfoChanged)
+
+    # -- NVMe SMART (read every window opening) --------------------------------
+    def _get_disk_health(self) -> str:
+        smart = self._smart
+        if smart is None:
+            return ""
+        # A known problem is a warning even when the other half is unknown.
+        if smart.critical_warnings or (smart.media_errors or 0) > 0:
+            return "Warning"
+        if smart.critical_warnings is None or smart.media_errors is None:
+            return ""
+        return "Healthy"
+
+    def _get_disk_lifespan_used(self) -> int:
+        smart = self._smart
+        return smart.percent_used if smart and smart.percent_used is not None else MISSING
+
+    def _get_disk_written(self) -> float:
+        smart = self._smart
+        return float(smart.bytes_written) if smart and smart.bytes_written is not None else MISSING
+
+    def _get_disk_power_on_hours(self) -> float:
+        smart = self._smart
+        return float(smart.power_on_hours) if smart and smart.power_on_hours is not None else MISSING
+
+    # "Healthy" (no critical warning, no media error), "Warning", or "" when unknown.
+    diskHealth = Property(str, _get_disk_health, notify=systemInfoChanged)
+    # Percent of the rated life used (may pass 100), or MISSING.
+    diskLifespanUsed = Property(int, _get_disk_lifespan_used, notify=systemInfoChanged)
+    # Bytes written over the disk's life, or MISSING.
+    diskWritten = Property(float, _get_disk_written, notify=systemInfoChanged)
+    diskPowerOnHours = Property(float, _get_disk_power_on_hours, notify=systemInfoChanged)
 
     # -- host info (read once at startup) -------------------------------------
     def _get_kernel(self) -> str:
