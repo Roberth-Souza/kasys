@@ -109,13 +109,20 @@ def _disk_kind(identity: disk.DiskIdentity) -> str:
     return "HDD" if identity.rotational else "SSD"
 
 
-def _disk_health(smart: udisks.NvmeSmart | None) -> str:
+def _disk_health(smart: udisks.NvmeSmart | udisks.AtaSmart | None) -> str:
     if smart is None:
         return ""
+    # Same rule for both: the drive's own alarm, then damaged blocks.
+    if isinstance(smart, udisks.NvmeSmart):
+        alarm = None if smart.critical_warnings is None else bool(smart.critical_warnings)
+        errors = smart.media_errors
+    else:
+        alarm = smart.failing
+        errors = smart.bad_sectors
     # A known problem is a warning even when the other half is unknown.
-    if smart.critical_warnings or (smart.media_errors or 0) > 0:
+    if alarm or (errors or 0) > 0:
         return "Warning"
-    if smart.critical_warnings is None or smart.media_errors is None:
+    if alarm is None or errors is None:
         return ""
     return "Healthy"
 
@@ -270,8 +277,8 @@ class Monitor(QObject):
         # opens on the one holding /.
         self._disk_identities: dict[str, disk.DiskIdentity] = _read("disk identity", disk.get_disk_identity, {})
         self._root_disk: str = _read("root disk", disk.get_root_disk, None) or ""
-        # SMART is NVMe only for now: other disks have no key.
-        self._smart: dict[str, udisks.NvmeSmart | None] = {}
+        # NVMe and ATA SMART differ: wear fields exist on NVMe only.
+        self._smart: dict[str, udisks.NvmeSmart | udisks.AtaSmart | None] = {}
         self._disk_temps: dict[str, float | None] = {}
         self.read_system_info()
 
@@ -343,6 +350,8 @@ class Monitor(QObject):
         for name, identity in self._disk_identities.items():
             if identity.nvme:
                 self._smart[name] = _read("nvme smart", lambda name=name: udisks.get_nvme_smart(name), None)
+            else:
+                self._smart[name] = _read("ata smart", lambda name=name: udisks.get_ata_smart(name), None)
         self.systemInfoChanged.emit()
 
     @Slot(result=bool)
@@ -777,7 +786,9 @@ class Monitor(QObject):
         rows: list[dict[str, object]] = []
         for name, identity in sorted(self._disk_identities.items()):
             smart = self._smart.get(name)
+            nvme_smart = smart if isinstance(smart, udisks.NvmeSmart) else None
             temp = self._disk_temps.get(name)
+            space = self._disk_space.get(name)
             rows.append(
                 {
                     "name": name,
@@ -786,9 +797,13 @@ class Monitor(QObject):
                     "kind": _disk_kind(identity),
                     "temp": temp if temp is not None else MISSING,
                     "health": _disk_health(smart),
-                    "lifespanUsed": _float_or_missing(smart.percent_used if smart else None),
-                    "written": _float_or_missing(smart.bytes_written if smart else None),
+                    "lifespanUsed": _float_or_missing(nvme_smart.percent_used if nvme_smart else None),
+                    "written": _float_or_missing(nvme_smart.bytes_written if nvme_smart else None),
                     "powerOnHours": _float_or_missing(smart.power_on_hours if smart else None),
+                    "fstype": space.fstype if space else "",
+                    "used": float(space.used) if space else MISSING,
+                    "available": float(space.available) if space else MISSING,
+                    "percent": _percent(space.used, space.used + space.available) if space else MISSING,
                 }
             )
         return rows
@@ -798,9 +813,10 @@ class Monitor(QObject):
 
     # One dict per disk, sorted by name. model ("" unknown; SATA cut at 16
     # chars), size (bytes), kind ("NVMe", "HDD", "SSD" or ""), temp (°C);
-    # SMART fields only for NVMe for now: health ("Healthy", "Warning", ""),
-    # lifespanUsed (%, may pass 100), written (bytes), powerOnHours.
-    # Numbers are MISSING when unknown.
+    # SMART: health ("Healthy", "Warning", ""), powerOnHours; NVMe only:
+    # lifespanUsed (%, may pass 100), written (bytes). Largest mounted
+    # partition, like `disks`: fstype ("" unmounted), used / available
+    # (bytes), percent. Numbers are MISSING when unknown.
     storageDisks = Property(list, _get_storage_disks, notify=tick)
     # Name of the disk holding /, the row's default; "" when not found.
     rootDisk = Property(str, _get_root_disk, constant=True)

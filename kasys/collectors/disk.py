@@ -21,6 +21,7 @@ DISK_NAME_IN_PROC = 2
 IO_TICKS_POSITION = 12
 DISK_PARTITION_NAME = 0
 DISK_PARTITION_FOLDER = 1
+DISK_PARTITION_FSTYPE = 2
 ROOT_MOUNT = "/"
 
 
@@ -29,6 +30,7 @@ class DiskInfo:
     total: int
     used: int
     available: int
+    fstype: str  # "btrfs", "ext4", "vfat"
 
 
 @dataclass(frozen=True)
@@ -170,6 +172,17 @@ def parse_disk_mounts(raw_mount_proc: str) -> dict[str, str]:
     return raw_partitions
 
 
+def parse_partition_fstypes(raw_mount_proc: str) -> dict[str, str]:
+    """Filesystem of each mounted partition. Every mount of one partition has
+    the same type (btrfs subvolumes are all btrfs)."""
+    fstypes: dict[str, str] = {}
+    for fields in (line.split() for line in raw_mount_proc.splitlines()):
+        device = fields[DISK_PARTITION_NAME]
+        if device.startswith(DEV_PREFIX):
+            fstypes[os.path.basename(device)] = fields[DISK_PARTITION_FSTYPE]
+    return fstypes
+
+
 def parse_root_partition(raw_mount_proc: str) -> str | None:
     """Partition mounted at /. Searched by mount point, not by partition:
     btrfs mounts one partition many times (/, /home, ...), so a partition's
@@ -193,14 +206,14 @@ def map_partitions_to_disks(partitions: dict[str, str], disk_names: list[str]) -
     return result
 
 
-def calc_partition_space(stats: os.statvfs_result) -> DiskInfo:
+def calc_partition_space(stats: os.statvfs_result, fstype: str) -> DiskInfo:
     total = stats.f_frsize * stats.f_blocks
     used = (stats.f_blocks - stats.f_bfree) * stats.f_frsize
     available = stats.f_bavail * stats.f_frsize
-    return DiskInfo(total, used, available)
+    return DiskInfo(total, used, available, fstype)
 
 
-def read_partition_space(parsed_disk_mounts: dict[str, str]) -> dict[str, DiskInfo]:
+def read_partition_space(parsed_disk_mounts: dict[str, str], fstypes: dict[str, str]) -> dict[str, DiskInfo]:
     partition_info: dict[str, DiskInfo] = {}
     for partition, mount_point in parsed_disk_mounts.items():
         try:
@@ -208,7 +221,7 @@ def read_partition_space(parsed_disk_mounts: dict[str, str]) -> dict[str, DiskIn
         except OSError as error:
             warnings.warn(f"os.statvfs failed: {error}")
             continue
-        partition_info[partition] = calc_partition_space(stats)
+        partition_info[partition] = calc_partition_space(stats, fstypes[partition])
     return partition_info
 
 
@@ -241,7 +254,8 @@ def get_disk_space() -> dict[str, DiskInfo]:
     disk_paths = read_disk_paths()
     parsed_disk_names = parse_disk_names(disk_paths)
     mapped_partitions = map_partitions_to_disks(parsed_disk_mounts, parsed_disk_names)
-    partition_space = read_partition_space(parsed_disk_mounts)
+    partition_fstypes = parse_partition_fstypes(raw_disk_mounts)
+    partition_space = read_partition_space(parsed_disk_mounts, partition_fstypes)
     largest_partition_disk_space = pick_largest_partition(mapped_partitions, partition_space)
     return largest_partition_disk_space
 

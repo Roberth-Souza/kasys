@@ -12,7 +12,9 @@ UDISKS = "org.freedesktop.UDisks2"
 UDISKS_BLOCK_PREFIX = "/org/freedesktop/UDisks2/block_devices/"
 BLOCK_INTERFACE = "org.freedesktop.UDisks2.Block"
 NVME_INTERFACE = "org.freedesktop.UDisks2.NVMe.Controller"
+ATA_INTERFACE = "org.freedesktop.UDisks2.Drive.Ata"
 PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
+SECONDS_PER_HOUR = 3600
 
 
 @dataclass(frozen=True)
@@ -22,6 +24,13 @@ class NvmeSmart:
     percent_used: int | None
     media_errors: int | None
     bytes_written: int | None
+
+
+@dataclass(frozen=True)
+class AtaSmart:
+    failing: bool | None  # the drive's own verdict
+    power_on_hours: int | None
+    bad_sectors: int | None
 
 
 def read_busctl(*args: str) -> CompletedProcess[str]:
@@ -113,6 +122,14 @@ def get_int_field(values: dict[str, object], key: str) -> int | None:
     return None
 
 
+def get_bool_field(values: dict[str, object], key: str) -> bool | None:
+    value = values.get(key)
+    if isinstance(value, bool):
+        return value
+    warnings.warn(f"{key}: {value} is not a bool")
+    return None
+
+
 def get_str_list_field(values: dict[str, object], key: str) -> list[str] | None:
     value = values.get(key)
     if not isinstance(value, list):
@@ -129,11 +146,18 @@ def get_str_list_field(values: dict[str, object], key: str) -> list[str] | None:
     return strings
 
 
-def get_nvme_smart(disk_name: str) -> NvmeSmart | None:
+def get_drive_path(disk_name: str) -> str | None:
+    """udisks2 object of the drive behind a disk. Not guessable: its name is
+    built from the model and the serial."""
     drive_stdout = try_read_udisk("get-property", UDISKS, f"{UDISKS_BLOCK_PREFIX}{disk_name}", BLOCK_INTERFACE, "Drive")
     if drive_stdout is None:
         return None
     drive = parse_udisk(drive_stdout)
+    return drive
+
+
+def get_nvme_smart(disk_name: str) -> NvmeSmart | None:
+    drive = get_drive_path(disk_name)
     if drive is None:
         return None
 
@@ -161,5 +185,34 @@ def get_nvme_smart(disk_name: str) -> NvmeSmart | None:
     return smart
 
 
+def get_ata_smart(disk_name: str) -> AtaSmart | None:
+    """SMART of a SATA disk, HDD or SSD. None, no warning, when the drive has
+    SMART off or none at all (most USB sticks)."""
+    drive = get_drive_path(disk_name)
+    if drive is None:
+        return None
+
+    properties_stdout = try_read_udisk("call", UDISKS, drive, PROPERTIES_INTERFACE, "GetAll", "s", ATA_INTERFACE)
+    if properties_stdout is None:
+        return None
+    properties = parse_busctl(properties_stdout)
+    if properties is None:
+        return None
+
+    if properties.get("SmartSupported") is not True or properties.get("SmartEnabled") is not True:
+        return None
+
+    power_on_seconds = get_int_field(properties, "SmartPowerOnSeconds")
+    power_on_hours = power_on_seconds // SECONDS_PER_HOUR if power_on_seconds is not None else None
+
+    smart = AtaSmart(
+        failing=get_bool_field(properties, "SmartFailing"),
+        power_on_hours=power_on_hours,
+        bad_sectors=get_int_field(properties, "SmartNumBadSectors"),
+    )
+    return smart
+
+
 if __name__ == "__main__":
     print(get_nvme_smart("nvme0n1"))
+    print(get_ata_smart("sda"))
