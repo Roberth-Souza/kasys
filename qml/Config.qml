@@ -213,6 +213,8 @@ QtObject {
     readonly property int artGpuWidth: 252
     readonly property int artRamWidth: 270
     readonly property int artNvmeWidth: 270
+    readonly property int artHddWidth: 156
+    readonly property int artSsdWidth: 146
     readonly property int artBoardWidth: 112
     readonly property int artMonitorWidth: 130
     readonly property int partArtWidth: 290      // drawing column of a full-width row

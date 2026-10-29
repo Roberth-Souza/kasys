@@ -11,13 +11,25 @@ Column {
     property bool hasDetail: true
     property string detail: ""
     property bool detailPending: false
+    // Optional control beside the heading, e.g. a Dropdown.
+    property Component picker: null
 
-    Label {
+    Row {
         width: root.width
         height: Config.partHeadHeight
-        verticalAlignment: Text.AlignVCenter
-        text: root.title
-        color: Config.fgActive
+        spacing: Config.blockGap
+
+        Label {
+            height: parent.height
+            verticalAlignment: Text.AlignVCenter
+            text: root.title
+            color: Config.fgActive
+        }
+
+        Loader {
+            height: parent.height
+            sourceComponent: root.picker
+        }
     }
 
     Label {

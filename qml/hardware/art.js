@@ -119,6 +119,56 @@ function nvme() {
     return { "w": 300, "h": 80, "shapes": s };
 }
 
+// SATA data (short) and power (long) plugs on the left edge.
+function sataPlugs(s) {
+    for (const [y, h] of [[22, 20], [46, 32]]) {
+        s.push(rect(4, y, 6, h, 0.5));
+        for (let p = y + 2.5; p < y + h - 1; p += 2.5)
+            s.push(path("M5," + p + " L9," + p, true));
+    }
+}
+
+// 3.5" hard disk, cover off: platter, read arm, magnet and board blocks.
+function hdd() {
+    const s = [path("M15,4 H149 L154,9 V91 L149,96 H15 L10,91 V9 Z")];
+    sataPlugs(s);
+    for (const [x, y] of [[19, 13], [145, 13], [19, 87], [145, 87]])
+        s.push(circle(x, y, 3));
+    // Platter and spindle.
+    s.push(circle(110, 50, 40), circle(110, 50, 37, true));
+    s.push(circle(110, 50, 10), circle(110, 50, 3));
+    // Magnet above the arm pivot, board cover below it.
+    s.push(path("M22,12 H52 L56,18 V24 L48,28 H40 L34,34 V50 H22 Z"));
+    s.push(path("M22,58 H34 L38,62 H46 L54,74 V88 H22 Z"));
+    s.push(circle(28, 18, 1.5, true), circle(46, 17, 1.5, true), circle(48, 83, 1.5, true));
+    // Arm: pivot, tapered beam, head over the platter.
+    s.push(circle(60, 38, 7), circle(60, 38, 3, true));
+    s.push(path("M63.6,45.8 L87.2,67.4 L89.4,65.2 L67.8,41.6 Z"));
+    s.push(path("M86.5,68.1 L90.1,64.5 L93.6,68.0 L90.0,71.6 Z"));
+    return { "w": 156, "h": 100, "shapes": s };
+}
+
+// 2.5" SATA SSD, cover off: controller, DRAM, two rows of NAND.
+function ssd() {
+    const s = [rect(10, 4, 132, 92, 4)];
+    sataPlugs(s);
+    for (const [x, y] of [[18, 12], [134, 12], [18, 88], [134, 88]])
+        s.push(circle(x, y, 3));
+    // Case rails along the long edges.
+    s.push(path("M38,4 L42,8 H110 L114,4", true), path("M38,96 L42,92 H110 L114,96", true));
+    s.push(rect(30, 38, 22, 22, 1.5), rect(34, 42, 14, 14, 1, true));
+    s.push(rect(30, 66, 14, 18, 1), rect(40, 16, 12, 8, 1));
+    for (const x of [62, 88, 114]) {
+        for (const y of [20, 54]) {
+            s.push(rect(x, y, 22, 26, 1));
+            s.push(circle(x + 3, y + 3, 0.8, true));
+        }
+    }
+    for (const [x, y] of [[22, 22], [22, 30], [22, 64], [22, 72], [54, 66], [54, 74], [50, 86]])
+        s.push(rect(x, y, 4, 2.5, 0.5, true));
+    return { "w": 146, "h": 100, "shapes": s };
+}
+
 function board() {
     const s = [rect(2, 2, 116, 116, 1.5)];
     for (const [x, y] of [[8, 8], [112, 8], [8, 112], [112, 112], [70, 112]])

@@ -96,6 +96,30 @@ def _known_chip(key: str) -> tuple[str, str]:
     return key, ""
 
 
+def _float_or_missing(value: int | None) -> float:
+    return float(value) if value is not None else MISSING
+
+
+def _disk_kind(identity: disk.DiskIdentity) -> str:
+    # Not "SATA" for the rest: USB and SAS disks land there too.
+    if identity.nvme:
+        return "NVMe"
+    if identity.rotational is None:
+        return ""
+    return "HDD" if identity.rotational else "SSD"
+
+
+def _disk_health(smart: udisks.NvmeSmart | None) -> str:
+    if smart is None:
+        return ""
+    # A known problem is a warning even when the other half is unknown.
+    if smart.critical_warnings or (smart.media_errors or 0) > 0:
+        return "Warning"
+    if smart.critical_warnings is None or smart.media_errors is None:
+        return ""
+    return "Healthy"
+
+
 def _temperature_rows(chips: dict[str, list[sensors.Sensor]]) -> list[dict[str, object]]:
     """One row per chip: known chips first in KNOWN_CHIPS order, then the rest."""
     order = list(KNOWN_CHIPS)
@@ -242,17 +266,13 @@ class Monitor(QObject):
         self._last_update: datetime | None = None
         self._recent_boots: list[float] = []
         self._cpu_policy: cpu.CpuPolicy | None = None
-        # Disks never change while running. The Storage row has no selector
-        # yet: it shows the disk holding /, else the first disk by name.
-        identities = _read("disk identity", disk.get_disk_identity, {})
-        root_disk = _read("root disk", disk.get_root_disk, None)
-        self._storage_disk: str | None = root_disk if root_disk in identities else min(identities, default=None)
-        # SMART is NVMe only for now: a SATA disk gets no reading at all.
-        self._storage_identity: disk.DiskIdentity | None = identities.get(self._storage_disk or "")
-        storage_nvme = self._storage_identity is not None and self._storage_identity.nvme
-        self._smart_disk: str | None = self._storage_disk if storage_nvme else None
-        self._smart: udisks.NvmeSmart | None = None
-        self._disk_temp: float | None = None
+        # Disks never change while running. The Storage row lists them all and
+        # opens on the one holding /.
+        self._disk_identities: dict[str, disk.DiskIdentity] = _read("disk identity", disk.get_disk_identity, {})
+        self._root_disk: str = _read("root disk", disk.get_root_disk, None) or ""
+        # SMART is NVMe only for now: other disks have no key.
+        self._smart: dict[str, udisks.NvmeSmart | None] = {}
+        self._disk_temps: dict[str, float | None] = {}
         self.read_system_info()
 
         # Model and core counts never change while running: read once.
@@ -320,9 +340,9 @@ class Monitor(QObject):
         # after that picks it up.
         self._recent_boots = _read("recent boots", boot.get_recent_boots, None) or []
         # Hours and bytes written grow while the daemon runs: re-read per opening.
-        smart_disk = self._smart_disk
-        if smart_disk is not None:
-            self._smart = _read("nvme smart", lambda: udisks.get_nvme_smart(smart_disk), None)
+        for name, identity in self._disk_identities.items():
+            if identity.nvme:
+                self._smart[name] = _read("nvme smart", lambda name=name: udisks.get_nvme_smart(name), None)
         self.systemInfoChanged.emit()
 
     @Slot(result=bool)
@@ -367,9 +387,10 @@ class Monitor(QObject):
         self._cpu_freq = _read("cpu frequency", cpu.get_cpu_freq, MISSING)
         self._disk_space = _read("disk space", disk.get_disk_space, self._disk_space)
         self._sensors = _read("sensors", sensors.get_sensors_info, self._sensors)
-        storage_disk = self._storage_disk
-        if storage_disk is not None:
-            self._disk_temp = _read("disk temperature", lambda: sensors.get_disk_temperature(storage_disk), None)
+        for name in self._disk_identities:
+            self._disk_temps[name] = _read(
+                "disk temperature", lambda name=name: sensors.get_disk_temperature(name), None
+            )
         # powerprofilesctl can switch the governor / EPP with the window open.
         self._cpu_policy = _read("cpu policy", cpu.get_cpu_policy, None)
 
@@ -751,69 +772,38 @@ class Monitor(QObject):
     # Total seconds of the last startups, oldest first; [] when unknown.
     recentBoots = Property(list, _get_recent_boots, notify=systemInfoChanged)
 
-    # -- storage disk identity (read once at startup) --------------------------
-    def _get_disk_model(self) -> str:
-        identity = self._storage_identity
-        return identity.model if identity and identity.model is not None else ""
+    # -- storage (identity once, SMART per opening, temperature per tick) ------
+    def _get_storage_disks(self) -> list[dict[str, object]]:
+        rows: list[dict[str, object]] = []
+        for name, identity in sorted(self._disk_identities.items()):
+            smart = self._smart.get(name)
+            temp = self._disk_temps.get(name)
+            rows.append(
+                {
+                    "name": name,
+                    "model": identity.model or "",
+                    "size": _float_or_missing(identity.size),
+                    "kind": _disk_kind(identity),
+                    "temp": temp if temp is not None else MISSING,
+                    "health": _disk_health(smart),
+                    "lifespanUsed": _float_or_missing(smart.percent_used if smart else None),
+                    "written": _float_or_missing(smart.bytes_written if smart else None),
+                    "powerOnHours": _float_or_missing(smart.power_on_hours if smart else None),
+                }
+            )
+        return rows
 
-    def _get_disk_size(self) -> float:
-        identity = self._storage_identity
-        return float(identity.size) if identity and identity.size is not None else MISSING
+    def _get_root_disk(self) -> str:
+        return self._root_disk
 
-    def _get_disk_kind(self) -> str:
-        identity = self._storage_identity
-        if identity is None:
-            return ""
-        # Not "SATA" for the rest: USB and SAS disks land there too.
-        if identity.nvme:
-            return "NVMe"
-        if identity.rotational is None:
-            return ""
-        return "HDD" if identity.rotational else "SSD"
-
-    # Model of the disk the Storage row shows; SATA models are cut at 16 chars.
-    diskModel = Property(str, _get_disk_model, constant=True)
-    # Bytes, float like the other sizes.
-    diskSize = Property(float, _get_disk_size, constant=True)
-    # "NVMe", "HDD", "SSD", or "" when unknown.
-    diskKind = Property(str, _get_disk_kind, constant=True)
-
-    # -- NVMe SMART (read every window opening) --------------------------------
-    def _get_disk_health(self) -> str:
-        smart = self._smart
-        if smart is None:
-            return ""
-        # A known problem is a warning even when the other half is unknown.
-        if smart.critical_warnings or (smart.media_errors or 0) > 0:
-            return "Warning"
-        if smart.critical_warnings is None or smart.media_errors is None:
-            return ""
-        return "Healthy"
-
-    def _get_disk_temp(self) -> float:
-        return self._disk_temp if self._disk_temp is not None else MISSING
-
-    def _get_disk_lifespan_used(self) -> int:
-        smart = self._smart
-        return smart.percent_used if smart and smart.percent_used is not None else MISSING
-
-    def _get_disk_written(self) -> float:
-        smart = self._smart
-        return float(smart.bytes_written) if smart and smart.bytes_written is not None else MISSING
-
-    def _get_disk_power_on_hours(self) -> float:
-        smart = self._smart
-        return float(smart.power_on_hours) if smart and smart.power_on_hours is not None else MISSING
-
-    # "Healthy" (no critical warning, no media error), "Warning", or "" when unknown.
-    diskHealth = Property(str, _get_disk_health, notify=systemInfoChanged)
-    # Percent of the rated life used (may pass 100), or MISSING.
-    diskLifespanUsed = Property(int, _get_disk_lifespan_used, notify=systemInfoChanged)
-    # Bytes written over the disk's life, or MISSING.
-    diskWritten = Property(float, _get_disk_written, notify=systemInfoChanged)
-    diskPowerOnHours = Property(float, _get_disk_power_on_hours, notify=systemInfoChanged)
-    # °C of the same disk from its own hwmon chip, per tick; MISSING without one.
-    diskTemp = Property(float, _get_disk_temp, notify=tick)
+    # One dict per disk, sorted by name. model ("" unknown; SATA cut at 16
+    # chars), size (bytes), kind ("NVMe", "HDD", "SSD" or ""), temp (°C);
+    # SMART fields only for NVMe for now: health ("Healthy", "Warning", ""),
+    # lifespanUsed (%, may pass 100), written (bytes), powerOnHours.
+    # Numbers are MISSING when unknown.
+    storageDisks = Property(list, _get_storage_disks, notify=tick)
+    # Name of the disk holding /, the row's default; "" when not found.
+    rootDisk = Property(str, _get_root_disk, constant=True)
 
     # -- host info (read once at startup) -------------------------------------
     def _get_kernel(self) -> str:
