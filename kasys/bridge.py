@@ -247,6 +247,7 @@ class Monitor(QObject):
         identities = _read("disk identity", disk.get_disk_identity, {})
         self._smart_disk: str | None = next((name for name in sorted(identities) if identities[name].nvme), None)
         self._smart: udisks.NvmeSmart | None = None
+        self._disk_temp: float | None = None
         self.read_system_info()
 
         # Model and core counts never change while running: read once.
@@ -361,6 +362,9 @@ class Monitor(QObject):
         self._cpu_freq = _read("cpu frequency", cpu.get_cpu_freq, MISSING)
         self._disk_space = _read("disk space", disk.get_disk_space, self._disk_space)
         self._sensors = _read("sensors", sensors.get_sensors_info, self._sensors)
+        smart_disk = self._smart_disk
+        if smart_disk is not None:
+            self._disk_temp = _read("disk temperature", lambda: sensors.get_disk_temperature(smart_disk), None)
         # powerprofilesctl can switch the governor / EPP with the window open.
         self._cpu_policy = _read("cpu policy", cpu.get_cpu_policy, None)
 
@@ -754,6 +758,9 @@ class Monitor(QObject):
             return ""
         return "Healthy"
 
+    def _get_disk_temp(self) -> float:
+        return self._disk_temp if self._disk_temp is not None else MISSING
+
     def _get_disk_lifespan_used(self) -> int:
         smart = self._smart
         return smart.percent_used if smart and smart.percent_used is not None else MISSING
@@ -773,6 +780,8 @@ class Monitor(QObject):
     # Bytes written over the disk's life, or MISSING.
     diskWritten = Property(float, _get_disk_written, notify=systemInfoChanged)
     diskPowerOnHours = Property(float, _get_disk_power_on_hours, notify=systemInfoChanged)
+    # °C of the same disk from its own hwmon chip, per tick; MISSING without one.
+    diskTemp = Property(float, _get_disk_temp, notify=tick)
 
     # -- host info (read once at startup) -------------------------------------
     def _get_kernel(self) -> str:

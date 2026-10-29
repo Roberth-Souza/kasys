@@ -3,15 +3,24 @@
 import glob
 import os
 import re
+import warnings
 from dataclasses import dataclass
 
 SYS_HWMON_CHIPS = "/sys/class/hwmon/hwmon*"
+SYS_HWMON_PREFIX = "/sys/block/"
+SYS_HWMON_SUFFIX = "/device/hwmon"
 
 
 @dataclass(frozen=True)
 class Sensor:
     label: str
     celsius: float
+
+
+def find_disk_hwmon(disk_name: str) -> list[str]:
+    nvme_folders: list[str] = glob.glob(f"{SYS_HWMON_PREFIX}{disk_name}{SYS_HWMON_SUFFIX}[0-9]*")
+    sata_folders: list[str] = glob.glob(f"{SYS_HWMON_PREFIX}{disk_name}{SYS_HWMON_SUFFIX}/hwmon[0-9]*")
+    return sata_folders + nvme_folders
 
 
 def parse_path_number(path: str) -> int:
@@ -87,5 +96,24 @@ def get_sensors_info() -> dict[str, list[Sensor]]:
     return result
 
 
+def get_disk_temperature(disk_name: str) -> float | None:
+    disk_folders = find_disk_hwmon(disk_name)
+    if not disk_folders:
+        return None
+
+    sensor_list = read_sensors(disk_folders[0])
+    if not sensor_list:
+        warnings.warn(f"Could not find any sensors in {disk_folders[0]}")
+        return None
+
+    for sensor in sensor_list:
+        if sensor.label == "Composite":
+            return sensor.celsius
+
+    return sensor_list[0].celsius
+
+
 if __name__ == "__main__":
     print(get_sensors_info())
+    print(get_disk_temperature("nvme0n1"))
+    print(get_disk_temperature("sda"))

@@ -30,7 +30,7 @@ PartRow {
             valueSize: Config.fontSizeLarge
             valueHeight: Config.partMidHeight
             stats: [
-                { "key": "Temperature", "value": Format.notBuilt },
+                { "key": "Temperature", "value": Format.celsius(monitor.diskTemp) },
                 { "key": "Health", "value": Format.text(monitor.diskHealth) }
             ]
         },
